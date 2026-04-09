@@ -105,34 +105,6 @@ Agrega a `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-### Docker (despliegue remoto SSE)
-
-```bash
-docker build -t aclimate-mcp .
-docker run -p 8000:8000 \
-  -e ACLIMATE_CLIENT_ID=tu-id \
-  -e ACLIMATE_CLIENT_SECRET=tu-secret \
-  aclimate-mcp
-```
-
-## Ejemplos de uso con Claude
-
-Una vez configurado en Claude Desktop, puedes preguntar:
-
-```
-¿Qué países tienen datos en AClimate?
-
-¿Cuáles son las condiciones climáticas actuales en Colombia?
-
-Dame la climatología histórica de Palmira para los meses de mayo a octubre.
-
-¿Cuántos días consecutivos de lluvia registró Ibagué en 2024?
-
-Analiza el riesgo climático para cultivo de maíz en Yopal durante el primer semestre.
-
-¿Qué recomendaciones tiene CIAT para manejar el estrés por calor en Colombia?
-```
-
 ## Variables de entorno
 
 | Variable | Requerida | Default | Descripción |
@@ -177,4 +149,14 @@ uv run ruff check .
 
 # Type checking
 uv run mypy aclimate_sdk aclimate_mcp
+```
+
+### Docker (despliegue remoto SSE)
+
+```bash
+docker build -t aclimate-mcp .
+docker run -p 8000:8000 \
+  -e ACLIMATE_CLIENT_ID=tu-id \
+  -e ACLIMATE_CLIENT_SECRET=tu-secret \
+  aclimate-mcp
 ```
