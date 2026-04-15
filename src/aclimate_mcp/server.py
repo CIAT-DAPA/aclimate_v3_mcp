@@ -158,6 +158,34 @@ async def _cached_get(cache_key: str, path: str, **params: Any) -> Any:
     #await cache.set(cache_key, data)
     return data
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# RESOURCES — Lecturas directas sin tool call
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@mcp.resource("aclimate://countries",mime_type="application/json")
+async def list_countries() -> list[str]:
+    """List all countries in AClimate."""
+    data = await _cached_get("countries:all", "/countries")
+    countries = [Country(**c) for c in data]
+    return countries
+
+@mcp.resource("aclimate://indicator-categories",mime_type="application/json")
+async def list_indicator_categories() -> list[str]:
+    """List of agroclimatic indicators categories."""
+    data = await _cached_get("indicators:categories:all",
+                             "/indicator-category-mng/all")
+    categories = [IndicatorCategory(**c) for c in data]
+    return categories
+
+
+@mcp.resource("aclimate://indicators/{country_id}",mime_type="application/json")
+async def list_indicators(country_id: int) -> list[str]:
+    """List of all agroclimatic indicators by country."""
+    cache_key = f"indicators:country:{country_id}:CLIMATE:None"
+    data = await _cached_get(cache_key, "/indicator-mng/by-country",
+                             country_id=country_id)
+    indicators = [Indicator(**i) for i in data]
+    return indicators
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOOLS — GEO DISCOVERY
@@ -615,35 +643,6 @@ async def list_indicator_categories(country_id: int | None = None) -> str:
                      + (f" — {desc}" if desc else ""))
     return "\n".join(lines)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# RESOURCES — Lecturas directas sin tool call
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@mcp.resource("aclimate://countries",mime_type="application/json")
-async def list_countries() -> list[str]:
-    """List all countries in AClimate."""
-    data = await _cached_get("countries:all", "/countries")
-    countries = [Country(**c) for c in data]
-    return countries
-
-@mcp.resource("aclimate://indicator-categories",mime_type="application/json")
-async def list_indicator_categories() -> list[str]:
-    """List of agroclimatic indicators categories."""
-    data = await _cached_get("indicators:categories:all",
-                             "/indicator-category-mng/all")
-    categories = [IndicatorCategory(**c) for c in data]
-    return categories
-
-
-@mcp.resource("aclimate://indicators/{country_id}",mime_type="application/json")
-async def list_indicators(country_id: int) -> list[str]:
-    """List of all agroclimatic indicators by country."""
-    cache_key = f"indicators:country:{country_id}:CLIMATE:None"
-    data = await _cached_get(cache_key, "/indicator-mng/by-country",
-                             country_id=country_id)
-    indicators = [Indicator(**i) for i in data]
-    return indicators
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PROMPTS — Plantillas de razonamiento agronómico
