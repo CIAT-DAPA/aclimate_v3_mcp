@@ -52,6 +52,8 @@ from aclimate_sdk.aclimate_models import (
     ClimateHistoricalIndicatorRecord,
     ClimateHistoricalMonthly,
     Country,
+    Indicator,
+    IndicatorCategory,
     IndicatorFeature,
     Location,
     MinMaxClimatologyRecord,
@@ -160,35 +162,6 @@ async def _cached_get(cache_key: str, path: str, **params: Any) -> Any:
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOOLS — GEO DISCOVERY
 # ═══════════════════════════════════════════════════════════════════════════════
-
-@mcp.tool()
-async def list_countries() -> str:
-    """
-    Lista todos los países disponibles en la plataforma AClimate.
-    Retorna nombre, ID y código ISO2 de cada país.
-    Úsalo como primer paso para saber qué países tienen datos.
-    """
-    data = await _cached_get("countries:all", "/countries")
-    countries = [Country(**c) for c in data]
-    return ctx.countries_summary(countries)
-
-
-@mcp.tool()
-async def find_country_by_name(name: str) -> str:
-    """
-    Busca países en AClimate por nombre (búsqueda parcial).
-    Útil para obtener el country_id cuando el usuario menciona un país.
-
-    Args:
-        name: Nombre del país a buscar (ej: "Colombia", "Ethiopia", "Angola")
-    """
-    cache_key = f"countries:name:{name.lower()}"
-    data = await _cached_get(cache_key, "/countries/by-name", name=name)
-    if not data:
-        return f"No se encontró ningún país con el nombre '{name}' en AClimate."
-    countries = [Country(**c) for c in data]
-    return ctx.countries_summary(countries)
-
 
 @mcp.tool()
 async def find_admin_region(name: str, level: str = "admin1") -> str:
@@ -647,34 +620,30 @@ async def list_indicator_categories(country_id: int | None = None) -> str:
 # RESOURCES — Lecturas directas sin tool call
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@mcp.resource("aclimate://countries")
-async def resource_countries() -> str:
+@mcp.resource("aclimate://countries",mime_type="application/json")
+async def list_countries() -> list[str]:
     """List all countries in AClimate."""
     data = await _cached_get("countries:all", "/countries")
-    #print(data)
     countries = [Country(**c) for c in data]
-    return ctx.countries_summary(countries)
+    return countries
+
+@mcp.resource("aclimate://indicator-categories",mime_type="application/json")
+async def list_indicator_categories() -> list[str]:
+    """List of agroclimatic indicators categories."""
+    data = await _cached_get("indicators:categories:all",
+                             "/indicator-category-mng/all")
+    categories = [IndicatorCategory(**c) for c in data]
+    return categories
 
 
-@mcp.resource("aclimate://indicators/{country_id}")
-async def resource_indicators(country_id: int) -> str:
-    """Catálogo de indicadores agro-climáticos disponibles para un país."""
+@mcp.resource("aclimate://indicators/{country_id}",mime_type="application/json")
+async def list_indicators(country_id: int) -> list[str]:
+    """List of all agroclimatic indicators by country."""
     cache_key = f"indicators:country:{country_id}:CLIMATE:None"
     data = await _cached_get(cache_key, "/indicator-mng/by-country",
                              country_id=country_id)
-    return ctx.indicators_catalog_summary(data)
-
-
-@mcp.resource("aclimate://indicator-categories")
-async def resource_indicator_categories() -> str:
-    """Categorías de indicadores agro-climáticos."""
-    data = await _cached_get("indicators:categories:all",
-                             "/indicator-category-mng/all")
-    lines = ["Categorías de indicadores:"]
-    for cat in data:
-        lines.append(f"  • [{cat.get('id')}] {cat.get('name')}")
-    return "\n".join(lines)
-
+    indicators = [Indicator(**i) for i in data]
+    return indicators
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PROMPTS — Plantillas de razonamiento agronómico
