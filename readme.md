@@ -72,11 +72,16 @@ git clone https://github.com/CIAT-DAPA/aclimate_v3_mcp
 cd aclimate_v3_mcp
 
 # Instalar dependencias
+source .venv/bin/activate # Linux
+.venv\Scripts\activate # Windows
 uv sync
 
 # Configurar credenciales
 cp .env.example .env
 # Editar .env con tu client_id y client_secret de Keycloak
+
+# Correr Web de test
+mcp dev "./src/aclimate_mcp/server.py"
 
 # Ejecutar tests
 uv run pytest -v

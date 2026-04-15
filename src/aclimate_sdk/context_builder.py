@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from aclimate_models import (
+from aclimate_sdk.aclimate_models import (
     ClimateHistoricalClimatology,
     ClimateHistoricalDaily,
     ClimateHistoricalIndicatorRecord,
