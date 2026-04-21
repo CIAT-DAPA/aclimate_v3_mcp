@@ -154,6 +154,9 @@ uv run ruff check .
 
 # Type checking
 uv run mypy aclimate_sdk aclimate_mcp
+
+# Dev
+mcp dev "./src/aclimate_mcp/server.py"
 ```
 
 ### Docker (despliegue remoto SSE)
