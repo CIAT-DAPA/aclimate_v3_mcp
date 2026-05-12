@@ -23,8 +23,9 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
     # GEO
     # ═══════════════════════════════════════════════════════════════════════════
 
-    @mcp.tool()
-    async def find_admin_region(name: str, level: str = "admin1") -> str:
+    @mcp.tool(name="find_admin_region",
+            description="Search for administrative regions (departments, states, municipalities) by name.")
+    async def find_admin_region(name: str, level: str = "admin1") -> list[object]:
         cache_key = f"admin:{level}:name:{name.lower()}"
 
         if level == "admin1":
@@ -33,33 +34,19 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
             data = await cached_get(cache_key, "/admin2/by-name", name=name)
 
         if not data:
-            return f"No se encontró ninguna región '{name}' en el nivel {level}."
+            #return f"Region not found '{name}' at {level}."
+            return []
 
-        lines = [f"Regiones encontradas para '{name}' (nivel {level}):"]
-        for item in data:
-            lines.append(
-                f"  • [{item.get('id')}] {item.get('name')}"
-                f" — {item.get('country_name', '')} (ext_id={item.get('ext_id', '?')})"
-            )
-        return "\n".join(lines)
+        return data
 
-    @mcp.tool()
-    async def find_locations(name: str) -> str:
+    @mcp.tool(name="find_locations",
+            description="Search for climate monitoring locations by name. Always use this before querying historical data or indicators to obtain the correct location_id.")
+    async def find_locations(name: str) -> list[object]:
         cache_key = f"locations:name:{name.lower()}"
         data = await cached_get(cache_key, "/locations/by-name", name=name)
-        locations = [Location(**loc) for loc in data]
-        return ctx.locations_summary(locations)
-
-    @mcp.tool()
-    async def get_locations_with_current_data(country_id: int, days: int = 7) -> str:
-        cache_key = f"locations-data:country:{country_id}:days:{days}"
-        data = await cached_get(
-            cache_key,
-            "/locations/by-country-ids-with-data",
-            country_ids=country_id,
-            days=days,
-        )
-        return ctx.current_conditions_summary(data)
+        records = [Location(**loc) for loc in data]
+        #return ctx.locations_summary(records)
+        return records
 
     @mcp.tool()
     async def get_point_data_from_coordinates(
@@ -92,59 +79,47 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
     # HISTORICAL CLIMATE
     # ═══════════════════════════════════════════════════════════════════════════
 
-    @mcp.tool()
+    @mcp.tool(name="get_daily_climate",
+            description="Search for historical daily climate data by locations and date range.")
     async def get_daily_climate(
         location_ids: str,
         start_date: str,
-        end_date: str,
-        measures: str | None = None,
+        end_date: str
     ) -> str:
-        cache_key = f"historical-daily:{location_ids}:{start_date}:{end_date}:{measures}"
-
-        endpoint = (
-            "/historical-daily/by-date-range-and-specific-measures"
-            if measures
-            else "/historical-daily/by-date-range-all-measures"
-        )
+        cache_key = f"historical-daily:{location_ids}:{start_date}:{end_date}"
 
         data = await cached_get(
             cache_key,
-            endpoint,
+            "/historical-daily/by-date-range-all-measures",
             location_ids=location_ids,
-            measures=measures,
             start_date=start_date,
             end_date=end_date,
         )
 
         records = [ClimateHistoricalDaily(**r) for r in data]
-        return ctx.daily_climate_summary(records)
+        #return ctx.daily_climate_summary(records)
+        return records
 
-    @mcp.tool()
+    @mcp.tool(name="get_monthly_climate",
+            description="Search for historical monthly climate data by locations and date range.")
     async def get_monthly_climate(
         location_ids: str,
         start_date: str,
-        end_date: str,
-        measures: str | None = None,
+        end_date: str
     ) -> str:
-        cache_key = f"historical-monthly:{location_ids}:{start_date}:{end_date}:{measures}"
-
-        endpoint = (
-            "/historical-monthly/by-date-range-and-specific-measures"
-            if measures
-            else "/historical-monthly/by-date-range-all-measures"
-        )
+        cache_key = f"historical-monthly:{location_ids}:{start_date}:{end_date}"
 
         data = await cached_get(
             cache_key,
-            endpoint,
+            "/historical-monthly/by-date-range-all-measures",
             location_ids=location_ids,
-            measures=measures,
             start_date=start_date,
             end_date=end_date,
         )
 
         records = [ClimateHistoricalMonthly(**r) for r in data]
-        return ctx.monthly_climate_summary(records)
+        #return ctx.monthly_climate_summary(records)
+        return records
 
     @mcp.tool()
     async def get_climatology(

@@ -1,3 +1,10 @@
+"""
+Resources:
+    - aclimate://countries
+    - aclimate://indicators/{country_id}
+    - aclimate://indicator-categories
+"""
+
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
@@ -34,7 +41,7 @@ def register_resources(mcp, cached_get: CachedGet) -> None:
     @mcp.resource("aclimate://indicators/{country_id}", mime_type="application/json")
     async def list_indicators(country_id: int) -> list[Indicator]:
         """List of all agroclimatic indicators by country."""
-        cache_key = f"indicators:country:{country_id}:CLIMATE:None"
+        cache_key = f"indicators:country:{country_id}"
         data = await cached_get(
             cache_key,
             "/indicator-mng/by-country",

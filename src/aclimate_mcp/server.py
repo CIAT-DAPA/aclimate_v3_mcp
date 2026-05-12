@@ -1,68 +1,19 @@
 """
 AClimate MCP Server
 Expone la API v3 de AClimate al ecosistema de IA a través del protocolo MCP.
-
-Tools disponibles:
-  Geo Discovery:
-    - list_countries
-    - find_country_by_name
-    - find_admin_region
-    - find_locations
-    - get_locations_with_current_data
-    - get_point_data_from_coordinates
-
-  Historical Climate:
-    - get_daily_climate
-    - get_monthly_climate
-    - get_climatology
-    - get_climate_extremes_daily
-    - get_climate_extremes_climatology
-
-  Agro-climate Indicators:
-    - list_indicators_by_country
-    - get_indicator_history
-    - get_indicator_by_name_and_location
-    - get_indicator_extremes
-    - get_agro_recommendations
-    - list_indicator_categories
-
-Resources:
-    - aclimate://countries
-    - aclimate://indicators/{country_id}
-    - aclimate://indicator-categories
-
-Prompts:
-    - analyze_climate_risk
-    - compare_location_climate
 """
 
 from __future__ import annotations
 
 import asyncio
-import atexit
 import logging
 import sys
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from aclimate_sdk.aclimate_models import (
-    ClimateHistoricalClimatology,
-    ClimateHistoricalDaily,
-    ClimateHistoricalIndicatorRecord,
-    ClimateHistoricalMonthly,
-    Country,
-    Indicator,
-    IndicatorCategory,
-    IndicatorFeature,
-    Location,
-    MinMaxClimatologyRecord,
-    MinMaxDailyRecord,
-    MinMaxIndicatorRecord,
-)
 from aclimate_sdk.context_builder import ContextBuilder
-#from aclimate_sdk.aclimate_client import AClimateClient
-from aclimate_sdk.aclimate_client import get_client, close_client
+from aclimate_sdk.aclimate_client import get_client
 
 
 from aclimate_mcp.settings import Settings
@@ -119,7 +70,7 @@ register_prompts(mcp=mcp)
 def main() -> None:
     async def run() -> None:
         logger.info(
-            "AClimate MCP Server iniciado — API: %s",
+            "AClimate MCP started — API: %s",
             settings.api_base_url,
         )
         await mcp.run_sse_async()
