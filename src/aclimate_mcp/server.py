@@ -12,8 +12,8 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from aclimate_sdk.context_builder import ContextBuilder
-from aclimate_sdk.aclimate_client import get_client
+from aclimatesdkpy.context_builder import ContextBuilder
+from aclimatesdkpy.aclimate_client import get_client
 
 
 from aclimate_mcp.settings import Settings
