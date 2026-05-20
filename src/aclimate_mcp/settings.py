@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # MCP
     server_name: str = "AClimate"
     log_level: str = "INFO"
+    mcp_transport: str
+    mcp_host: str
+    mcp_port: int
 
 
 # Instancia global

@@ -70,10 +70,19 @@ register_prompts(mcp=mcp)
 def main() -> None:
     async def run() -> None:
         logger.info(
-            "AClimate MCP started — API: %s",
+            "AClimate MCP started — API: %s - MODE: %s",
             settings.api_base_url,
+            settings.mcp_transport,
         )
-        await mcp.run_sse_async()
+        #await mcp.run_sse_async()
+        
+        if settings.mcp_transport == "streamable-http":
+            await mcp.run_async(transport="streamable-http",host=settings.mcp_host,port=settings.mcp_port,)
+        elif settings.mcp_transport == "sse":
+            await mcp.run_async(transport="sse",host=settings.mcp_host,port=settings.mcp_port,)
+        else:
+            await mcp.run_async(transport="stdio")
+        
 
     asyncio.run(run())
 
