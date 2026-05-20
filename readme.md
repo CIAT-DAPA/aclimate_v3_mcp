@@ -118,18 +118,15 @@ Agrega a `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `ACLIMATE_CLIENT_SECRET` | ✅ | — | Client Secret de Keycloak |
 | `ACLIMATE_API_BASE_URL` | ❌ | `https://api.aclimate.org` | URL base de la API |
 | `ACLIMATE_LOG_LEVEL` | ❌ | `INFO` | Nivel de logging |
+| `ACLIMATE_MCP_TRANSPORT` | ✅ | `streamable-http` or `sse` or `stdio` | Modo de ejecución del MCP |
+| `ACLIMATE_MCP_HOST` | ✅ | - | Host para correr el servicio |
+| `ACLIMATE_MCP_PORT` | ✅ | - | Puerto para correr el servicio |
 
 ## Estructura del proyecto
 
 ```
 aclimate_v3_mcp/
 ├── src/                        # Source code
-│   ├── aclimate_sdk/           # SDK interno — cliente, modelos, caché
-│   │   ├── __init__.py
-│   │   ├── client.py           # AClimateClient (httpx async + Keycloak)
-│   │   ├── models.py           # Modelos Pydantic del spec openapi.json
-│   │   ├── context_builder.py  # Transformación datos → narrativa IA
-│   │   └── cache.py            # CacheLayer (Redis / in-memory)
 │   ├── aclimate_mcp/           # MCP Server
 │   │   ├── __init__.py
 │   │   ├── server.py           # Tools, Resources y Prompts MCP
@@ -139,6 +136,7 @@ aclimate_v3_mcp/
 │   └── test_sdk.py             # Tests unitarios con respx
 ├── pyproject.toml
 ├── Dockerfile
+├── Jenkins
 ├── .env.example
 └── README.md
 ```

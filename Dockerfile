@@ -7,7 +7,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copia archivos del proyecto
 COPY pyproject.toml .
-COPY aclimate_sdk/ ./aclimate_sdk/
 COPY aclimate_mcp/ ./aclimate_mcp/
 
 # Instala dependencias (sin dev)

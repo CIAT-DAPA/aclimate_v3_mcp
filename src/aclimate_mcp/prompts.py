@@ -1,3 +1,9 @@
+"""
+Prompts:
+    - analyze_climate_risk
+    - compare_location_climate
+"""
+
 from __future__ import annotations
 
 
