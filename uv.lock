@@ -15,7 +15,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aclimatesdkpy", git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.27.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.10.0" },
     { name = "tenacity", specifier = ">=9.1.4" },
 ]
 
