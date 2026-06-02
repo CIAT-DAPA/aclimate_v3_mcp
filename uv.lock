@@ -7,14 +7,26 @@ name = "aclimate-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aclimatesdkpy" },
     { name = "mcp", extra = ["cli"] },
     { name = "tenacity" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aclimatesdkpy", git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.27.0" },
     { name = "tenacity", specifier = ">=9.1.4" },
+]
+
+[[package]]
+name = "aclimatesdkpy"
+version = "0.1.0"
+source = { git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git#1366896307b206472882cdf4acfdaf06e748bb79" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "tenacity" },
 ]
 
 [[package]]
