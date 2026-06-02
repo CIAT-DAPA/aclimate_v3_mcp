@@ -2,23 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
+from aclimatesdkpy import AClimateClient
 from aclimatesdkpy.aclimate_models import (
-    ClimateHistoricalClimatology,
-    ClimateHistoricalDaily,
     ClimateHistoricalIndicatorRecord,
-    ClimateHistoricalMonthly,
     IndicatorFeature,
     Location,
-    MinMaxClimatologyRecord,
-    MinMaxDailyRecord,
-    MinMaxIndicatorRecord,
 )
 
-CachedGet = Callable[..., Awaitable[Any]]
-GetClient = Callable[..., Awaitable[Any]]
+#CachedGet = Callable[..., Awaitable[Any]]
+#GetClient = Callable[..., Awaitable[Any]]
 
 
-def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> None:
+#def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> None:
+def register_tools(mcp, client: AClimateClient) -> None:
     # ═══════════════════════════════════════════════════════════════════════════
     # ADMINISTRATIVE REGIONS AND LOCATIONS
     # ═══════════════════════════════════════════════════════════════════════════
@@ -26,12 +22,14 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
     @mcp.tool(name="find_admin_region",
             description="Search for administrative regions (departments, states, municipalities) by name.")
     async def find_admin_region(name: str, level: str = "admin1") -> list[object]:
-        cache_key = f"admin:{level}:name:{name.lower()}"
+        #cache_key = f"admin:{level}:name:{name.lower()}"
 
         if level == "admin1":
-            data = await cached_get(cache_key, "/admin1/by-name", name=name)
+            #data = await cached_get(cache_key, "/admin1/by-name", name=name)
+            data = await client.get_admin1_by_name(name)
         else:
-            data = await cached_get(cache_key, "/admin2/by-name", name=name)
+            #data = await cached_get(cache_key, "/admin2/by-name", name=name)
+            data = await client.get_admin2_by_name(name)
 
         if not data:
             #return f"Region not found '{name}' at {level}."
@@ -42,11 +40,13 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
     @mcp.tool(name="find_locations",
             description="Search for climate monitoring locations by name. Always use this before querying historical data or indicators to obtain the correct location_id.")
     async def find_locations(name: str) -> list[object]:
-        cache_key = f"locations:name:{name.lower()}"
-        data = await cached_get(cache_key, "/locations/by-name", name=name)
-        records = [Location(**loc) for loc in data]
+        #cache_key = f"locations:name:{name.lower()}"
+        #data = await cached_get(cache_key, "/locations/by-name", name=name)
+        data = await client.get_locations_by_name(name=name)
+        #records = [Location(**loc) for loc in data]
         #return ctx.locations_summary(records)
-        return records
+        #return records
+        return data
 
     # ═══════════════════════════════════════════════════════════════════════════
     # HISTORICAL CLIMATE
@@ -54,102 +54,83 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
 
     @mcp.tool(name="get_daily_climate",
             description="Search for historical daily climate data by locations and date range.")
-    async def get_daily_climate(
-        location_ids: str,
-        start_date: str,
-        end_date: str
-    ) -> list[object]:
-        cache_key = f"historical-daily:{location_ids}:{start_date}:{end_date}"
+    async def get_daily_climate(location_ids: str,start_date: str,end_date: str) -> list[object]:
+        #cache_key = f"historical-daily:{location_ids}:{start_date}:{end_date}"
 
-        data = await cached_get(
-            cache_key,
-            "/historical-daily/by-date-range-all-measures",
+        #data = await cached_get(cache_key,"/historical-daily/by-date-range-all-measures",location_ids=location_ids,start_date=start_date,end_date=end_date,)
+        data = await client.get_historical_daily_by_date_range_all_measures(
             location_ids=location_ids,
             start_date=start_date,
-            end_date=end_date,
+            end_date=end_date
         )
-
-        records = [ClimateHistoricalDaily(**r) for r in data]
+        #records = [ClimateHistoricalDaily(**r) for r in data]
         #return ctx.daily_climate_summary(records)
-        return records
+        #return records
+        return data
 
     @mcp.tool(name="get_monthly_climate",
             description="Search for historical monthly climate data by locations and date range.")
-    async def get_monthly_climate(
-        location_ids: str,
-        start_date: str,
-        end_date: str
-    ) -> list[object]:
-        cache_key = f"historical-monthly:{location_ids}:{start_date}:{end_date}"
+    async def get_monthly_climate(location_ids: str,start_date: str,end_date: str) -> list[object]:
+        #cache_key = f"historical-monthly:{location_ids}:{start_date}:{end_date}"
 
-        data = await cached_get(
-            cache_key,
-            "/historical-monthly/by-date-range-all-measures",
+        #data = await cached_get(cache_key,"/historical-monthly/by-date-range-all-measures",location_ids=location_ids,start_date=start_date,end_date=end_date,)
+        data = await client.get_historical_monthly_by_date_range_all_measures(
             location_ids=location_ids,
             start_date=start_date,
-            end_date=end_date,
+            end_date=end_date
         )
 
-        records = [ClimateHistoricalMonthly(**r) for r in data]
+        #records = [ClimateHistoricalMonthly(**r) for r in data]
         #return ctx.monthly_climate_summary(records)
-        return records
+        #return records
+        return data
 
     @mcp.tool(name="get_climatology",
             description="Search for historical climatology data by locations and month range.")
-    async def get_climatology(
-        location_ids: str,
-        start_month: int,
-        end_month: int
-    ) -> list[object]:
-        cache_key = f"climatology:{location_ids}:{start_month}:{end_month}"
+    async def get_climatology(location_ids: str,start_month: int,end_month: int) -> list[object]:
+        #cache_key = f"climatology:{location_ids}:{start_month}:{end_month}"
 
-        data = await cached_get(
-            cache_key,
-            "/climatology/by-month-range-location-ids-all-measures",
+        #data = await cached_get(cache_key,"/climatology/by-month-range-location-ids-all-measures",location_ids=location_ids,start_month=start_month,end_month=end_month,)
+        data = await client.get_climatology_by_month_range_location_ids_all_measures(
             location_ids=location_ids,
             start_month=start_month,
-            end_month=end_month,
+            end_month=end_month
         )
 
-        records = [ClimateHistoricalClimatology(**r) for r in data]
+        #records = [ClimateHistoricalClimatology(**r) for r in data]
         #return ctx.climatology_narrative(records)
-        return records
+        #return records
+        return data
 
     @mcp.tool(name="get_climate_extremes_daily",
             description="Get the first and last (extreme dates) data of daily climate for a location.")
     async def get_climate_extremes_daily(location_id: int) -> list[object]:
-        data = await cached_get(
-            f"minmax:daily:{location_id}",
-            "/historical-daily/minmax-by-location",
-            location_id=location_id,
-        )
+        #data = await cached_get(f"minmax:daily:{location_id}","/historical-daily/minmax-by-location",location_id=location_id,)
+        data = await client.get_historical_daily_minmax_by_location(location_id=location_id)
         #return ctx.minmax_daily_summary([MinMaxDailyRecord(**r) for r in data])
-        records = [MinMaxDailyRecord(**r) for r in data]
-        return records
+        #records = [MinMaxDailyRecord(**r) for r in data]
+        #return records
+        return data
 
     @mcp.tool(name="get_climate_extremes_monthly",
             description="Get the first and last (extreme dates) data of monthly climate for a location.")
     async def get_climate_extremes_monthly(location_id: int) -> list[object]:
-        data = await cached_get(
-            f"minmax:monthly:{location_id}",
-            "/historical-monthly/minmax-by-location",
-            location_id=location_id,
-        )
+        #data = await cached_get(f"minmax:monthly:{location_id}","/historical-monthly/minmax-by-location",location_id=location_id,)
+        data = await client.get_historical_monthly_minmax_by_location(location_id=location_id)
         #return ctx.minmax_daily_summary([MinMaxDailyRecord(**r) for r in data])
-        records = [MinMaxDailyRecord(**r) for r in data]
-        return records
+        #records = [MinMaxDailyRecord(**r) for r in data]
+        #return records
+        return data
 
     @mcp.tool(name="get_climate_extremes_climatology",
             description="Get the first and last (extreme dates) data of climatology climate for a location.")
     async def get_climate_extremes_climatology(location_id: int) -> list[object]:
-        data = await cached_get(
-            f"minmax:climatology:{location_id}",
-            "/climatology/minmax-by-location",
-            location_id=location_id,
-        )
+        #data = await cached_get(f"minmax:climatology:{location_id}","/climatology/minmax-by-location",location_id=location_id,)
+        data = await client.get_climatology_minmax_by_location(location_id=location_id)
         #return ctx.minmax_climatology_summary([MinMaxClimatologyRecord(**r) for r in data])
-        records = [MinMaxClimatologyRecord(**r) for r in data]
-        return records
+        #records = [MinMaxClimatologyRecord(**r) for r in data]
+        #return records
+        return data
 
     # ═══════════════════════════════════════════════════════════════════════════
     # INDICATORS
@@ -158,73 +139,54 @@ def register_tools(mcp, cached_get: CachedGet, ctx, get_client: GetClient) -> No
     @mcp.tool(name="get_indicator_history",
             description="Get the historical data of indicators for a location.")
     async def get_indicator_history(location_id: int) -> list[object]:
-        data = await cached_get(
-            f"indicators:history:{location_id}",
-            "/indicator/by-location-id",
-            location_id=location_id,
-        )
-        records = [ClimateHistoricalIndicatorRecord(**r) for r in data]
+        #data = await cached_get(f"indicators:history:{location_id}","/indicator/by-location-id",location_id=location_id,)
+        data = await client.get_indicator_by_location_id(location_id=location_id)
+        #records = [ClimateHistoricalIndicatorRecord(**r) for r in data]
         #return ctx.indicator_narrative([ClimateHistoricalIndicatorRecord(**r) for r in data])
-        return records
-
+        #return records
+        return data
 
     @mcp.tool(name="get_indicator_extremes",
             description="Get the first and last (extreme dates) data of a indicator for a location.")
     async def get_indicator_extremes(location_id: int) -> list[object]:
-        data = await cached_get(
-            f"minmax:indicators:{location_id}",
-            "/indicator/minmax-by-location",
-            location_id=location_id,
-        )
+        #data = await cached_get(f"minmax:indicators:{location_id}","/indicator/minmax-by-location",location_id=location_id,)
+        data = await client.get_indicator_minmax_by_location(location_id=location_id)
         #return ctx.indicator_extremes_narrative([MinMaxIndicatorRecord(**r) for r in data])
-        records = [MinMaxIndicatorRecord(**r) for r in data]
-        return records
+        #records = [MinMaxIndicatorRecord(**r) for r in data]
+        #return records
+        return data
 
     @mcp.tool(name="get_features_indicator",
             description="Get the features of an indicator for a specific location.")
-    async def get_features_indicator(
-        indicator_id: int,
-        country_id: int,
-        feature_type: str = "recommendation",
-    ) -> list[object]:
-        data = await cached_get(
-            f"features:{indicator_id}:{country_id}",
-            "/indicator-features/by-indicator-and-country",
+    async def get_features_indicator(indicator_id: int,country_id: int,feature_type: str = "recommendation",) -> list[object]:
+        #data = await cached_get(f"features:{indicator_id}:{country_id}","/indicator-features/by-indicator-and-country",indicator_id=indicator_id,country_id=country_id,type=feature_type,)
+        data = await client.get_indicator_features_by_indicator_and_country(
             indicator_id=indicator_id,
             country_id=country_id,
-            type=feature_type,
+            type=feature_type
         )
         #return ctx.recommendations_narrative([IndicatorFeature(**f) for f in data])
-        records = [IndicatorFeature(**f) for f in data]
-        return records
+        #records = [IndicatorFeature(**f) for f in data]
+        #return records
+        return data
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SPATIAL DATA
     # ═══════════════════════════════════════════════════════════════════════════
 
-    @mcp.tool()
-    async def get_point_data_from_coordinates(
-        lat: float,
-        lon: float,
-        workspace: str,
-        store: str,
-        start_date: str,
-        end_date: str,
-        temporality: str = "monthly",
-    ) -> list[object]:
-        client = await get_client()
-        data = await client.post(
-            "/geoserver/point-data",
-            json_body={
-                "coordinates": [[lon, lat]],
-                "start_date": start_date,
-                "end_date": end_date,
-                "workspace": workspace,
-                "store": store,
-                "temporality": temporality,
-            },
+    @mcp.tool(name="get_point_data_from_coordinates",
+            description="Get point data from coordinates.")
+    async def get_point_data_from_coordinates(lat: float,lon: float,workspace: str,store: str,start_date: str,end_date: str,temporality: str = "monthly",) -> list[object]:
+        #cache_key = f"point-data:{lat}:{lon}:{workspace}:{store}:{start_date}:{end_date}:{temporality}"
+        #data = await cached_get(cache_key,"/spatial/point-data-by-coordinates",lat=lat,lon=lon,workspace=workspace,store=store,start_date=start_date,end_date=end_date,temporality=temporality,)
+        data = await client.get_spatial_point_data_by_coordinates(
+            lat=lat,
+            lon=lon,
+            workspace=workspace,
+            store=store,
+            start_date=start_date,
+            end_date=end_date,
+            temporality=temporality
         )
-        return (
-            f"Datos raster para ({lat}, {lon}) — {workspace}/{store} "
-            f"[{start_date} → {end_date}]:\n{data}"
-        )
+        #return ctx.point_data_summary(data)
+        return data

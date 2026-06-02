@@ -1,6 +1,6 @@
 """
 AClimate MCP Server
-Expone la API v3 de AClimate al ecosistema de IA a través del protocolo MCP.
+Expose AClimate API v3 to AI using MCP protocol
 """
 
 from __future__ import annotations
@@ -10,11 +10,10 @@ import logging
 import sys
 from typing import Any
 
+from aclimatesdkpy import AClimateClient
 from mcp.server.fastmcp import FastMCP
 
-from aclimatesdkpy.context_builder import ContextBuilder
 from aclimatesdkpy.aclimate_client import get_client
-
 
 from aclimate_mcp.settings import Settings
 from aclimate_mcp.resources import register_resources
@@ -32,10 +31,9 @@ logging.basicConfig(
 logger = logging.getLogger("aclimate_mcp")
 
 mcp = FastMCP(settings.server_name, log_level=settings.log_level.upper())
-ctx = ContextBuilder()
 
 
-# El cliente se inicializa en el lifespan del servidor
+# Starts the AClimate client in the lifespan of the server to be shared across tools.
 async def shared_client():
     return await get_client(
         base_url=settings.api_base_url,
@@ -46,23 +44,30 @@ async def shared_client():
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def cached_get(cache_key: str, path: str, **params: Any) -> Any:
-    """GET automatic cache."""
+    print()
+    #"""GET automatic cache."""
     #cached = await cache.get(cache_key)
     #if cached is not None:
     #    return cached
     #data = await get_client().get(path, **params)
-    client = await get_client(
-        base_url=settings.api_base_url,
-        client_id=settings.client_id,
-        client_secret=settings.client_secret,
-    )
-    data = await client.get(path, **params)
+    #client = await get_client(
+    #    base_url=settings.api_base_url,
+    #    client_id=settings.client_id,
+    #    client_secret=settings.client_secret,
+    #)
+    
+    #client.get_countries
+    #data = await client.get(path, **params)
     #await cache.set(cache_key, data)
-    return data
+    #return data
 
 # ── REGISTRO CENTRALIZADO ─────────────────────────────────────────────────────
-register_resources(mcp=mcp, cached_get=cached_get)
-register_tools(mcp=mcp, cached_get=cached_get, ctx=ctx, get_client=get_client)
+client = asyncio.run(shared_client())
+#client = await shared_client()
+#register_resources(mcp=mcp, cached_get=cached_get)
+register_resources(mcp=mcp, client=client)
+#register_tools(mcp=mcp, cached_get=cached_get, ctx=ctx, get_client=get_client)
+register_tools(mcp=mcp, client=client)
 register_prompts(mcp=mcp)
 
 
@@ -81,6 +86,7 @@ def main() -> None:
         elif settings.mcp_transport == "sse":
             await mcp.run_async(transport="sse",host=settings.mcp_host,port=settings.mcp_port,)
         else:
+            print("Using stdio transport. This is not recommended for production.")
             await mcp.run_async(transport="stdio")
         
 
