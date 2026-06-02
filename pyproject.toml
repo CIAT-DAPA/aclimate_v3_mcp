@@ -6,7 +6,7 @@ readme = "readme.md"
 requires-python = ">=3.10"
 dependencies = [
     "aclimatesdkpy",
-    "mcp[cli]>=1.27.0",
+    "mcp[cli]>=1.10.0",
     "tenacity>=9.1.4",
 ]
 

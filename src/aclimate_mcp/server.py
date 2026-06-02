@@ -30,7 +30,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("aclimate_mcp")
 
-mcp = FastMCP(settings.server_name, log_level=settings.log_level.upper())
+mcp = FastMCP(settings.server_name, log_level=settings.log_level.upper(), 
+              host=settings.mcp_host, port=settings.mcp_port,)
 
 
 # Starts the AClimate client in the lifespan of the server to be shared across tools.
@@ -82,12 +83,15 @@ def main() -> None:
         #await mcp.run_sse_async()
         
         if settings.mcp_transport == "streamable-http":
-            await mcp.run_async(transport="streamable-http",host=settings.mcp_host,port=settings.mcp_port,)
+            #await mcp.run_async(transport="streamable-http",host=settings.mcp_host,port=settings.mcp_port,)
+            await mcp.run_streamable_http_async()
         elif settings.mcp_transport == "sse":
-            await mcp.run_async(transport="sse",host=settings.mcp_host,port=settings.mcp_port,)
+            #await mcp.run_async(transport="sse",host=settings.mcp_host,port=settings.mcp_port,)
+            await mcp.run_sse_async()
         else:
             print("Using stdio transport. This is not recommended for production.")
-            await mcp.run_async(transport="stdio")
+            #await mcp.run_async(transport="stdio")
+            await mcp.run_sse_async()
         
 
     asyncio.run(run())
