@@ -31,6 +31,7 @@ pipeline {
                             cd /var/www/docs/mcp/aclimate_v3_mcp
                             git checkout main
                             git pull origin main
+                            source /home/lamardeployer/miniforge3/etc/profile.d/conda.sh
                             conda activate python3_10
                             uv sync --no-dev
                         """
@@ -46,7 +47,8 @@ pipeline {
                 script {
                     try {
                         sshCommand remote: remote, command: """
-                            cd /var/www/docs/mcp/aclimate_v3_mcp/src/aclimate_mcp
+                            cd /var/www/docs/mcp/aclimate_v3_mcp/
+                            source /home/lamardeployer/miniforge3/etc/profile.d/conda.sh
                             conda activate python3_10
                             fuser -k 8006/tcp || true
                             uv run aclimate-mcp > /var/www/docs/mcp/aclimate_v3_mcp/mcp.log 2>&1 &
