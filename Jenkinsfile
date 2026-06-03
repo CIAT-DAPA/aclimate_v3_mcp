@@ -31,7 +31,7 @@ pipeline {
                             cd /var/www/docs/mcp/aclimate_v3_mcp
                             git checkout main
                             git pull origin main
-                            source /var/www/docs/mcp/aclimate_v3_mcp/.venv/bin/activate
+                            conda activate python3_10
                             uv sync --no-dev
                         """
                     } catch (Exception e) {
@@ -47,14 +47,13 @@ pipeline {
                     try {
                         sshCommand remote: remote, command: """
                             cd /var/www/docs/mcp/aclimate_v3_mcp/src/aclimate_mcp
-                            source /var/www/docs/mcp/aclimate_v3_mcp/.venv/bin/activate
+                            conda activate python3_10
                             fuser -k 8006/tcp || true
                             uv run aclimate-mcp > /var/www/docs/mcp/aclimate_v3_mcp/mcp.log 2>&1 &
-                            #uv run uvicorn aclimate_mcp.app.server:app --host 0.0.0.0 --port 8006 > /var/www/docs/mcp/aclimate_v3_mcp/mcp.log 2>&1 &
                         """
                     } catch (Exception e) {
-                        echo "API Restart Error: ${e.message}"
-                        error("Failed to restart API: ${e.message}")
+                        echo "MCP Restart Error: ${e.message}"
+                        error("Failed to restart MCP: ${e.message}")
                     }
                 }
             }
