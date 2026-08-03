@@ -19,17 +19,11 @@ def register_tools(mcp, client: AClimateClient) -> None:
     # ADMINISTRATIVE REGIONS AND LOCATIONS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    @mcp.tool(name="find_admin_region",
-            description="Search for administrative regions (departments, states, municipalities) by name.")
-    async def find_admin_region(name: str, level: str = "admin1") -> list[object]:
+    @mcp.tool(name="find_administrative_region_level_1",
+            description="Search for administrative regions level 2 (departments, states) by name.")
+    async def find_administrative_region_level_1(name: str) -> list[object]:
         #cache_key = f"admin:{level}:name:{name.lower()}"
-
-        if level == "admin1":
-            #data = await cached_get(cache_key, "/admin1/by-name", name=name)
-            data = await client.get_admin1_by_name(name)
-        else:
-            #data = await cached_get(cache_key, "/admin2/by-name", name=name)
-            data = await client.get_admin2_by_name(name)
+        data = await client.get_admin1_by_name(name)
 
         if not data:
             #return f"Region not found '{name}' at {level}."
@@ -37,9 +31,21 @@ def register_tools(mcp, client: AClimateClient) -> None:
 
         return data
 
-    @mcp.tool(name="find_locations",
-            description="Search for climate monitoring locations by name. Always use this before querying historical data or indicators to obtain the correct location_id.")
-    async def find_locations(name: str) -> list[object]:
+    @mcp.tool(name="find_administrative_region_level_2",
+            description="Search for administrative regions level 1 (municipalities, counties) by name.")
+    async def find_administrative_region_level_2(name: str) -> list[object]:
+            #cache_key = f"admin:{level}:name:{name.lower()}"
+            data = await client.get_admin2_by_name(name)
+    
+            if not data:
+                #return f"Region not found '{name}' at {level}."
+                return []
+    
+            return data
+
+    @mcp.tool(name="get_locations_by_name",
+            description="Get a list of locations available by name. Always use this before querying historical data or indicators to obtain the correct location_id.")
+    async def get_locations_by_name(name: str) -> list[object]:
         #cache_key = f"locations:name:{name.lower()}"
         #data = await cached_get(cache_key, "/locations/by-name", name=name)
         data = await client.get_locations_by_name(name=name)
