@@ -60,12 +60,12 @@ def register_tools(mcp, client: AClimateClient) -> None:
 
     @mcp.tool(name="get_daily_climate",
             description="Search for historical daily climate data by locations and date range.")
-    async def get_daily_climate(location_ids: str,start_date: str,end_date: str) -> list[object]:
+    async def get_daily_climate(location_ids: list[int],start_date: str,end_date: str) -> list[object]:
         #cache_key = f"historical-daily:{location_ids}:{start_date}:{end_date}"
 
         #data = await cached_get(cache_key,"/historical-daily/by-date-range-all-measures",location_ids=location_ids,start_date=start_date,end_date=end_date,)
         data = await client.get_historical_daily_by_date_range_all_measures(
-            location_ids=location_ids,
+            location_ids=",".join(map(str, location_ids)),
             start_date=start_date,
             end_date=end_date
         )
@@ -76,12 +76,12 @@ def register_tools(mcp, client: AClimateClient) -> None:
 
     @mcp.tool(name="get_monthly_climate",
             description="Search for historical monthly climate data by locations and date range.")
-    async def get_monthly_climate(location_ids: str,start_date: str,end_date: str) -> list[object]:
+    async def get_monthly_climate(location_ids: list[int],start_date: str,end_date: str) -> list[object]:
         #cache_key = f"historical-monthly:{location_ids}:{start_date}:{end_date}"
 
         #data = await cached_get(cache_key,"/historical-monthly/by-date-range-all-measures",location_ids=location_ids,start_date=start_date,end_date=end_date,)
         data = await client.get_historical_monthly_by_date_range_all_measures(
-            location_ids=location_ids,
+            location_ids=",".join(map(str, location_ids)),
             start_date=start_date,
             end_date=end_date
         )
@@ -93,12 +93,12 @@ def register_tools(mcp, client: AClimateClient) -> None:
 
     @mcp.tool(name="get_climatology",
             description="Search for historical climatology data by locations and month range.")
-    async def get_climatology(location_ids: str,start_month: int,end_month: int) -> list[object]:
+    async def get_climatology(location_ids: list[int],start_month: int,end_month: int) -> list[object]:
         #cache_key = f"climatology:{location_ids}:{start_month}:{end_month}"
 
         #data = await cached_get(cache_key,"/climatology/by-month-range-location-ids-all-measures",location_ids=location_ids,start_month=start_month,end_month=end_month,)
         data = await client.get_climatology_by_month_range_location_ids_all_measures(
-            location_ids=location_ids,
+            location_ids=",".join(map(str, location_ids)),
             start_month=start_month,
             end_month=end_month
         )
