@@ -108,9 +108,9 @@ def register_tools(mcp, client: AClimateClient) -> None:
         #return records
         return data
 
-    @mcp.tool(name="get_climate_extremes_daily",
-            description="Get the first and last (extreme dates) data of daily climate for a location.")
-    async def get_climate_extremes_daily(location_id: int) -> list[object]:
+    @mcp.tool(name="get_available_climate_daliy_date_ranges",
+            description="Returns the available date ranges for querying climate daily data for one location. Use this tool before requesting historical climate information to determine the valid start and end dates supported by the data source.")
+    async def get_available_climate_daliy_date_ranges(location_id: int) -> list[object]:
         #data = await cached_get(f"minmax:daily:{location_id}","/historical-daily/minmax-by-location",location_id=location_id,)
         data = await client.get_historical_daily_minmax_by_location(location_id=location_id)
         #return ctx.minmax_daily_summary([MinMaxDailyRecord(**r) for r in data])
@@ -118,9 +118,9 @@ def register_tools(mcp, client: AClimateClient) -> None:
         #return records
         return data
 
-    @mcp.tool(name="get_climate_extremes_monthly",
-            description="Get the first and last (extreme dates) data of monthly climate for a location.")
-    async def get_climate_extremes_monthly(location_id: int) -> list[object]:
+    @mcp.tool(name="get_available_climate_monthly_date_ranges",
+            description="Returns the available date ranges for querying climate monthly data for one location. Use this tool before requesting historical climate information to determine the valid start and end dates supported by the data source.")
+    async def get_available_climate_monthly_date_ranges(location_id: int) -> list[object]:
         #data = await cached_get(f"minmax:monthly:{location_id}","/historical-monthly/minmax-by-location",location_id=location_id,)
         data = await client.get_historical_monthly_minmax_by_location(location_id=location_id)
         #return ctx.minmax_daily_summary([MinMaxDailyRecord(**r) for r in data])
@@ -128,9 +128,9 @@ def register_tools(mcp, client: AClimateClient) -> None:
         #return records
         return data
 
-    @mcp.tool(name="get_climate_extremes_climatology",
-            description="Get the first and last (extreme dates) data of climatology climate for a location.")
-    async def get_climate_extremes_climatology(location_id: int) -> list[object]:
+    @mcp.tool(name="get_available_climate_climatology_date_ranges",
+            description="Returns the available date ranges for querying climatology data for one location. Use this tool before requesting historical climate information to determine the valid start and end dates supported by the data source.")
+    async def get_available_climate_climatology_date_ranges(location_id: int) -> list[object]:
         #data = await cached_get(f"minmax:climatology:{location_id}","/climatology/minmax-by-location",location_id=location_id,)
         data = await client.get_climatology_minmax_by_location(location_id=location_id)
         #return ctx.minmax_climatology_summary([MinMaxClimatologyRecord(**r) for r in data])
@@ -152,9 +152,9 @@ def register_tools(mcp, client: AClimateClient) -> None:
         #return records
         return data
 
-    @mcp.tool(name="get_indicator_extremes",
-            description="Get the first and last (extreme dates) data of a indicator for a location.")
-    async def get_indicator_extremes(location_id: int) -> list[object]:
+    @mcp.tool(name="get_available_indicator_date_ranges",
+            description="Returns the available date ranges for querying indicators data for one location. Use this tool before requesting indicator information to determine the valid start and end dates supported by the data source.")
+    async def get_available_indicator_date_ranges(location_id: int) -> list[object]:
         #data = await cached_get(f"minmax:indicators:{location_id}","/indicator/minmax-by-location",location_id=location_id,)
         data = await client.get_indicator_minmax_by_location(location_id=location_id)
         #return ctx.indicator_extremes_narrative([MinMaxIndicatorRecord(**r) for r in data])
