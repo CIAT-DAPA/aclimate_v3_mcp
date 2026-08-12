@@ -24,7 +24,7 @@ requires-dist = [
 [[package]]
 name = "aclimatesdkpy"
 version = "0.1.0"
-source = { git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git#1366896307b206472882cdf4acfdaf06e748bb79" }
+source = { git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git#d694c7095202d95613945181e4951ff62ac2bd7c" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
