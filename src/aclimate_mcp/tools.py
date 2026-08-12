@@ -43,12 +43,12 @@ def register_tools(mcp, client: AClimateClient) -> None:
     
             return data
 
-    @mcp.tool(name="get_locations_by_name",
+    @mcp.tool(name="search_locations_by_name",
             description="Get a list of locations available by name. Always use this before querying historical data or indicators to obtain the correct location_id.")
-    async def get_locations_by_name(name: str) -> list[object]:
+    async def search_locations_by_name(name: str) -> list[object]:
         #cache_key = f"locations:name:{name.lower()}"
         #data = await cached_get(cache_key, "/locations/by-name", name=name)
-        data = await client.get_locations_by_name(name=name)
+        data = await client.get_locations_by_search(name=name)
         #records = [Location(**loc) for loc in data]
         #return ctx.locations_summary(records)
         #return records
