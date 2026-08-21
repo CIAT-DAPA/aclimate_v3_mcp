@@ -1,0 +1,11 @@
+.git
+.github
+.venv
+dist
+*.zip
+.env
+.pytest_cache
+**/__pycache__
+**/*.pyc
+Jenkinsfile
+tests
