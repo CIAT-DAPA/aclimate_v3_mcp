@@ -1,5 +1,3 @@
-# tests/test_server.py
-
 import importlib
 import sys
 import types
@@ -38,6 +36,7 @@ class DummyMCP:
     def __init__(self, *args, **kwargs):
         self.routes = {}
         self.run_calls = []
+        self.lifespan = kwargs.get("lifespan")
 
     def custom_route(self, path, methods):
         def decorator(func):
@@ -65,6 +64,11 @@ def server_module(monkeypatch):
     async def fake_get_client(**kwargs):
         return dummy_client
 
+    async def fake_close_client():
+        fake_close_client.called = True
+
+    fake_close_client.called = False
+
     def fake_register_resources(**kwargs):
         fake_register_resources.called_with = kwargs
 
@@ -88,9 +92,16 @@ def server_module(monkeypatch):
 
     fake_client_module = types.ModuleType("aclimatesdkpy.aclimate_client")
     fake_client_module.get_client = fake_get_client
+    fake_client_module.close_client = fake_close_client
+    fake_client_module.AClimateClient = object
 
     fake_fastmcp_module = types.ModuleType("mcp.server.fastmcp")
-    fake_fastmcp_module.FastMCP = lambda *args, **kwargs: dummy_mcp
+
+    def fake_fastmcp(*args, **kwargs):
+        dummy_mcp.lifespan = kwargs.get("lifespan")
+        return dummy_mcp
+
+    fake_fastmcp_module.FastMCP = fake_fastmcp
 
     monkeypatch.setitem(sys.modules, "aclimate_mcp.settings", fake_settings_module)
     monkeypatch.setitem(sys.modules, "aclimate_mcp.resources", fake_resources_module)
@@ -179,7 +190,7 @@ def test_register_resources_called_with_expected_arguments(server_module):
     """
     assert server_module._fake_register_resources.called_with == {
         "mcp": server_module.mcp,
-        "client": server_module._dummy_client,
+        "get_client": server_module.provide_client,
     }
 
 
@@ -190,7 +201,7 @@ def test_register_tools_called_with_expected_arguments(server_module):
     """
     assert server_module._fake_register_tools.called_with == {
         "mcp": server_module.mcp,
-        "client": server_module._dummy_client,
+        "get_client": server_module.provide_client,
     }
 
 
@@ -246,3 +257,27 @@ def test_main_uses_stdio_transport_for_unknown_configuration(server_module):
     assert server_module._dummy_mcp.run_calls[-1] == {
         "transport": "stdio",
     }
+
+
+def test_provide_client_resolves_the_shared_client(server_module):
+    """
+    Verify that the provider resolves the shared client inside a running
+    event loop, so the HTTP pool belongs to the loop serving the requests.
+    """
+    assert asyncio.run(server_module.provide_client()) is server_module._dummy_client
+
+
+def test_module_declares_no_lifespan(server_module):
+    """
+    Under streamable-http/sse FastMCP runs the lifespan once per MCP session,
+    so the process-wide client must not be torn down there.
+    """
+    assert not hasattr(server_module, "lifespan")
+
+
+def test_client_is_not_created_at_import_time(server_module):
+    """
+    Verify that importing the module does not open the HTTP client,
+    so the connection pool stays bound to the serving event loop.
+    """
+    assert not hasattr(server_module, "client")
