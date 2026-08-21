@@ -5,16 +5,14 @@ Expose AClimate API v3 to AI using MCP protocol
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
-from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 from mcp.server.fastmcp import FastMCP
 
-from aclimatesdkpy.aclimate_client import get_client
+from aclimatesdkpy.aclimate_client import AClimateClient, get_client
 
 from aclimate_mcp.settings import Settings
 from aclimate_mcp.resources import register_resources
@@ -31,42 +29,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger("aclimate_mcp")
 
-mcp = FastMCP(settings.server_name, log_level=settings.log_level.upper(),
-              host=settings.mcp_host, port=settings.mcp_port)
 
-
-# Starts the AClimate client in the lifespan of the server to be shared across tools.
-async def shared_client():
+# ── SHARED CLIENT ─────────────────────────────────────────────────────────────
+# The SDK's get_client() is an idempotent singleton: the first call inside the
+# running event loop opens the httpx.AsyncClient, later calls reuse it. Resolving
+# it lazily (instead of at import time) keeps the HTTP pool bound to the loop
+# that actually serves the requests.
+async def provide_client() -> AClimateClient:
+    """Return the shared AClimate client, creating it on first use."""
     return await get_client(
         base_url=settings.api_base_url,
         client_id=settings.client_id,
         client_secret=settings.client_secret,
     )
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def cached_get(cache_key: str, path: str, **params: Any) -> Any:
-    print()
-    #"""GET automatic cache."""
-    #cached = await cache.get(cache_key)
-    #if cached is not None:
-    #    return cached
-    #data = await get_client().get(path, **params)
-    #client = await get_client(
-    #    base_url=settings.api_base_url,
-    #    client_id=settings.client_id,
-    #    client_secret=settings.client_secret,
-    #)
-    
-    #client.get_countries
-    #data = await client.get(path, **params)
-    #await cache.set(cache_key, data)
-    #return data
+# NOTE: the shared client is NOT opened/closed through a FastMCP lifespan.
+# Two reasons, both verified against this project:
+#   1. Under streamable-http and sse, FastMCP runs the lifespan once per MCP
+#      SESSION, not once per process. Closing the SDK singleton there tears it
+#      down for every session still running ("AssertionError: Client not
+#      initialized").
+#   2. `mcp dev` / `mcp run` load this file with importlib without registering
+#      it in sys.modules; combined with `from __future__ import annotations`,
+#      any @dataclass declared here fails with
+#      "AttributeError: 'NoneType' object has no attribute '__dict__'".
+# The lazy provider above is enough: the pool is created on first use inside the
+# serving loop and released when the process exits (SDK atexit hook).
+mcp = FastMCP(
+    settings.server_name,
+    log_level=settings.log_level.upper(),
+    host=settings.mcp_host,
+    port=settings.mcp_port,
+)
 
 # ── REGISTRO CENTRALIZADO ─────────────────────────────────────────────────────
-client = asyncio.run(shared_client())
-register_resources(mcp=mcp, client=client)
-register_tools(mcp=mcp, client=client)
+register_resources(mcp=mcp, get_client=provide_client)
+register_tools(mcp=mcp, get_client=provide_client)
 register_prompts(mcp=mcp)
 
 # ── WEB PAGE ──────────────────────────────────────────────────────────────────
