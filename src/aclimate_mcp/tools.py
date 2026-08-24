@@ -163,10 +163,10 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
     # ═══════════════════════════════════════════════════════════════════════════
 
     @mcp.tool(name="get_daily_climate",
-            description="Historical daily climate data (precipitation, temperatures, solar radiation) for one or more locations over a date range. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_daily_date_ranges." + _DETAIL_HINT)
+            description="Historical daily climate data (precipitation, temperatures, solar radiation) for one location over a date range. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_daily_date_ranges." + _DETAIL_HINT)
     @_tool_errors
     async def get_daily_climate(
-        location_ids: list[int],
+        location_id: int,
         start_date: str,
         end_date: str,
         detail: Detail = "summary",
@@ -174,7 +174,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
         _validate_date_range(start_date, end_date)
         client = await get_client()
         data = await client.get_historical_daily_by_date_range_all_measures(
-            location_ids="[" + ",".join(map(str, location_ids)) + "]",
+            location_ids=[location_id],
             start_date=start_date,
             end_date=end_date,
         )
@@ -186,7 +186,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
             description="Historical monthly climate data for one or more locations over a date range. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_monthly_date_ranges." + _DETAIL_HINT)
     @_tool_errors
     async def get_monthly_climate(
-        location_ids: list[int],
+        location_id: int,
         start_date: str,
         end_date: str,
         detail: Detail = "summary",
@@ -194,7 +194,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
         _validate_date_range(start_date, end_date)
         client = await get_client()
         data = await client.get_historical_monthly_by_date_range_all_measures(
-            location_ids="[" + ",".join(map(str, location_ids)) + "]",
+            location_ids=[location_id],
             start_date=start_date,
             end_date=end_date,
         )
@@ -206,7 +206,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
             description="Historical climate normals (long-term monthly averages) for one or more locations over a month range. Months are 1-12." + _DETAIL_HINT)
     @_tool_errors
     async def get_climatology(
-        location_ids: list[int],
+        location_id: int,
         start_month: int,
         end_month: int,
         detail: Detail = "summary",
@@ -215,7 +215,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
         _validate_month(end_month, "end_month")
         client = await get_client()
         data = await client.get_climatology_by_month_range_location_ids_all_measures(
-            location_ids="[" + ",".join(map(str, location_ids)) + "]",
+            location_ids=[location_id],
             start_month=start_month,
             end_month=end_month,
         )
