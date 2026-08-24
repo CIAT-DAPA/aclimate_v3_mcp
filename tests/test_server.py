@@ -30,6 +30,7 @@ class DummySettings:
     api_base_url = "https://api.example.com"
     client_id = "test-client"
     client_secret = "test-secret"
+    language = "es"
 
 
 class DummyMCP:
@@ -95,6 +96,13 @@ def server_module(monkeypatch):
     fake_client_module.close_client = fake_close_client
     fake_client_module.AClimateClient = object
 
+    class FakeContextBuilder:
+        def __init__(self, language="en"):
+            self.language = language
+
+    fake_context_module = types.ModuleType("aclimatesdkpy.context_builder")
+    fake_context_module.ContextBuilder = FakeContextBuilder
+
     fake_fastmcp_module = types.ModuleType("mcp.server.fastmcp")
 
     def fake_fastmcp(*args, **kwargs):
@@ -108,6 +116,7 @@ def server_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "aclimate_mcp.tools", fake_tools_module)
     monkeypatch.setitem(sys.modules, "aclimate_mcp.prompts", fake_prompts_module)
     monkeypatch.setitem(sys.modules, "aclimatesdkpy.aclimate_client", fake_client_module)
+    monkeypatch.setitem(sys.modules, "aclimatesdkpy.context_builder", fake_context_module)
     monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp_module)
 
     sys.modules.pop(SERVER_MODULE_PATH, None)
@@ -199,10 +208,11 @@ def test_register_tools_called_with_expected_arguments(server_module):
     Verify that tools are registered using the shared MCP
     instance and the shared client during module initialization.
     """
-    assert server_module._fake_register_tools.called_with == {
-        "mcp": server_module.mcp,
-        "get_client": server_module.provide_client,
-    }
+    kwargs = server_module._fake_register_tools.called_with
+    assert kwargs["mcp"] is server_module.mcp
+    assert kwargs["get_client"] is server_module.provide_client
+    assert kwargs["ctx"] is server_module.context_builder
+    assert kwargs["ctx"].language == "es"
 
 
 def test_register_prompts_called_with_expected_arguments(server_module):

@@ -13,6 +13,7 @@ from starlette.responses import HTMLResponse, JSONResponse
 from mcp.server.fastmcp import FastMCP
 
 from aclimatesdkpy.aclimate_client import AClimateClient, get_client
+from aclimatesdkpy.context_builder import ContextBuilder
 
 from aclimate_mcp.settings import Settings
 from aclimate_mcp.resources import register_resources
@@ -64,8 +65,12 @@ mcp = FastMCP(
 )
 
 # ── REGISTRO CENTRALIZADO ─────────────────────────────────────────────────────
+# ContextBuilder turns raw API records into short narratives so time-series
+# tools do not flood the agent's context window (see tools.py detail param).
+context_builder = ContextBuilder(settings.language)
+
 register_resources(mcp=mcp, get_client=provide_client)
-register_tools(mcp=mcp, get_client=provide_client)
+register_tools(mcp=mcp, get_client=provide_client, ctx=context_builder)
 register_prompts(mcp=mcp)
 
 # ── WEB PAGE ──────────────────────────────────────────────────────────────────

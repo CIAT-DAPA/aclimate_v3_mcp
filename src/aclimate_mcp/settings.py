@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # MCP
     server_name: str = "AClimate"
     log_level: str = "INFO"
+    # Language for the summary narratives ("es" or "en").
+    language: str = "es"
     mcp_transport: str
     mcp_host: str
     mcp_port: int
