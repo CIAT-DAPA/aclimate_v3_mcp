@@ -30,7 +30,8 @@ from aclimate_mcp.models import (
     ClimatologyMeasureSeries,
     ClimateSeriesResponse,
     IndicatorSeries,
-    IndicatorHistoryResponse
+    IndicatorHistoryResponse,
+    RasterLayer,
 )
 
 # Lazy provider: resolves the shared client inside the running event loop.
@@ -72,10 +73,10 @@ def _to_date_range(record) -> AvailableDateRange:
         name=record.name,
         location_id=record.location_id,
         location_name=record.location_name,
-        min_value=record.min_value,
         min_date=_date_str(record.min_date),
-        max_value=record.max_value,
+        value_at_min_date=record.min_value,
         max_date=_date_str(record.max_date),
+        value_at_max_date=record.max_value,
     )
 
 def _to_indicator_point(record) -> _IndicatorPoint:
@@ -247,7 +248,8 @@ def _cap_raw(records: list, tool: str) -> list:
     if len(records) > RAW_RECORD_LIMIT:
         raise ToolError(
             f"{tool} returned {len(records)} records, above the raw limit of "
-            f"{RAW_RECORD_LIMIT}. Narrow the date range or locations, or call "
+            f"{RAW_RECORD_LIMIT}. Narrow the range with the tool filters "
+            "(start_date/end_date, and indicator_id where available), or call "
             "again with detail='summary'."
         )
     return records
@@ -286,7 +288,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
     # ═══════════════════════════════════════════════════════════════════════════
 
     @mcp.tool(name="get_daily_climate",
-            description="Historical daily climate data (precipitation, temperatures, solar radiation) for one location over a date range. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_daily_date_ranges." + _DETAIL_HINT)
+            description="Historical daily climate data for one location over a date range. Variables vary by station (precipitation, temperatures, solar radiation, streamflow, relative humidity, ET); get_available_climate_daily_date_ranges lists the variables each station serves. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_daily_date_ranges." + _DETAIL_HINT)
     @_tool_errors
     async def get_daily_climate(
         location_id: int,
@@ -306,7 +308,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
         return ctx.daily_climate_summary(data)
 
     @mcp.tool(name="get_monthly_climate",
-            description="Historical monthly climate data for one location over a date range. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_monthly_date_ranges." + _DETAIL_HINT)
+            description="Historical monthly climate data for one location over a date range. Variables vary by station; get_available_climate_monthly_date_ranges lists the variables each station serves. Dates are ISO YYYY-MM-DD; check valid ranges first with get_available_climate_monthly_date_ranges." + _DETAIL_HINT)
     @_tool_errors
     async def get_monthly_climate(
         location_id: int,
@@ -374,21 +376,49 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
     # ═══════════════════════════════════════════════════════════════════════════
 
     @mcp.tool(name="get_indicator_history",
-            description="Historical values of agroclimatic indicators for one location. Check valid ranges first with get_available_indicator_date_ranges." + _DETAIL_HINT)
+            description="Historical values of agroclimatic indicators for one location, summarised per indicator. Optional filters: indicator_id (from the aclimate://indicators/{country_id} resource), and start_date/end_date (ISO YYYY-MM-DD, applied to the period start of each record). Check valid ranges first with get_available_indicator_date_ranges." + _DETAIL_HINT)
     @_tool_errors
     async def get_indicator_history(
         location_id: int,
+        indicator_id: int | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         detail: Detail = "summary",
     ) -> str | IndicatorHistoryResponse:
+        if start_date is not None and end_date is not None:
+            _validate_date_range(start_date, end_date)
+        elif start_date is not None:
+            _iso_date(start_date, "start_date")
+        elif end_date is not None:
+            _iso_date(end_date, "end_date")
         client = await get_client()
         data = await client.get_indicator_by_location_id(location_id=location_id)
         points = [_to_indicator_point(r) for r in data]
+        # Filter BEFORE the raw cap, so narrow queries over large archives stay
+        # retrievable (bug S2: stations with >limit records had no raw access).
+        if indicator_id is not None:
+            points = [p for p in points if p.indicator_id == indicator_id]
+        if start_date is not None:
+            points = [p for p in points if p.start_date is not None and p.start_date >= start_date]
+        if end_date is not None:
+            points = [p for p in points if p.start_date is not None and p.start_date <= end_date]
         if detail == "raw":
             return _group_indicator_points(location_id, _cap_raw(points, "get_indicator_history"))
-        # The narrative gets the flattened points: the SDK's indicator_narrative
-        # slices start_date[:10], which crashes on the datetime the SDK model
-        # carries but works on our plain strings.
-        return ctx.indicator_narrative(points)
+        if not points:
+            return (
+                f"No indicator data for location {location_id} with these filters. "
+                "Check get_available_indicator_date_ranges for the valid window, "
+                "or drop the indicator_id/date filters."
+            )
+        # One narrative PER indicator (bug S1: pooling every indicator into one
+        # statistic produced meaningless numbers labelled with the first
+        # indicator name). The SDK narrative gets the flattened points: it
+        # slices start_date[:10], which crashes on the SDK model datetime but
+        # works on our plain strings.
+        groups: dict[int, list[_IndicatorPoint]] = {}
+        for point in points:
+            groups.setdefault(point.indicator_id, []).append(point)
+        return "\n\n".join(ctx.indicator_narrative(group) for group in groups.values())
 
     @mcp.tool(name="get_available_indicator_date_ranges",
             description="Available date range for indicator data at one location. Call this before get_indicator_history.")
@@ -405,20 +435,65 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
         indicator_id: int,
         country_id: int,
         feature_type: str = "recommendation",
-    ) -> list[IndicatorFeature]:
+    ) -> str | list[IndicatorFeature]:
         client = await get_client()
-        return await client.get_indicator_features_by_indicator_and_country(
+        data = await client.get_indicator_features_by_indicator_and_country(
             indicator_id=indicator_id,
             country_id=country_id,
             type=feature_type,
         )
+        if not data:
+            # An empty body is indistinguishable from a failed call for the
+            # agent (bug S10) — say explicitly that nothing is registered.
+            return (
+                f"No {feature_type!r} entries are registered for indicator "
+                f"{indicator_id} in country {country_id}. This is an empty "
+                "catalogue, not an error."
+            )
+        return data
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SPATIAL DATA
     # ═══════════════════════════════════════════════════════════════════════════
 
+    @mcp.tool(name="list_raster_layers",
+            description="List the GeoServer raster layers available for one country: for each climate measure, the workspace, store and temporality that get_point_data_from_coordinates requires. Get country_id from the aclimate://countries resource.")
+    @_tool_errors
+    async def list_raster_layers(country_id: int) -> str | list[RasterLayer]:
+        client = await get_client()
+        config = await client.get(f"/countries/{country_id}/climate-measures/configuration")
+        # Measure names enrich the layers; degrade gracefully if unavailable.
+        measures = {}
+        try:
+            measures = {m.id: m for m in await client.get_climate_measures_by_country(country_id)}
+        except Exception:  # noqa: BLE001 - names are optional enrichment
+            pass
+        layers: list[RasterLayer] = []
+        for entry in config or []:
+            measure = measures.get(entry.get("measure_id"))
+            for conf in entry.get("spatial_climate_conf") or []:
+                if conf.get("workspace") and conf.get("store"):
+                    layers.append(
+                        RasterLayer(
+                            measure_id=entry.get("measure_id"),
+                            measure=measure.short_name if measure else None,
+                            name=measure.name if measure else None,
+                            unit=measure.unit if measure else None,
+                            workspace=conf["workspace"],
+                            store=conf["store"],
+                            temporality=conf.get("temporality"),
+                        )
+                    )
+        if not layers:
+            return (
+                f"No raster layers are configured for country {country_id}. "
+                "Spatial point queries are not available there; use the "
+                "station tools instead."
+            )
+        return layers
+
     @mcp.tool(name="get_point_data_from_coordinates",
-            description="Raster time series for a geographic point (latitude/longitude) from a GeoServer workspace and store. Requires knowing the workspace and store names in advance. Dates are ISO YYYY-MM-DD.")
+            description="Raster time series for a geographic point (latitude/longitude). Call list_raster_layers first to obtain valid workspace and store values. Dates are ISO YYYY-MM-DD.")
     @_tool_errors
     async def get_point_data_from_coordinates(
         lat: float,

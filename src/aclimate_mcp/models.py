@@ -4,16 +4,25 @@ from datetime import date, datetime
 # ── OUTPUT MODELS ─────────────────────────────────────────────────────────────
 
 class AvailableDateRange(BaseModel):
-    """Available data window for one measure/indicator at one location."""
+    """Available data window for one measure/indicator at one location.
+
+    min_date/max_date are the first and last dates with data. The value
+    fields are what the API reports AT those dates: audits found 215 series
+    where the API's own "min_value" exceeded its "max_value", so they are NOT
+    the series extremes and must not be presented as such (bug S4)."""
 
     id: int
     name: str | None = None
     location_id: int
     location_name: str | None = None
-    min_value: float
-    min_date: str | None = None  # YYYY-MM-DD, usable as start_date
-    max_value: float
-    max_date: str | None = None  # YYYY-MM-DD, usable as end_date
+    min_date: str | None = None  # YYYY-MM-DD, first date with data, usable as start_date
+    value_at_min_date: float = Field(
+        description="Value the API reports at min_date. NOT the series minimum."
+    )
+    max_date: str | None = None  # YYYY-MM-DD, last date with data, usable as end_date
+    value_at_max_date: float = Field(
+        description="Value the API reports at max_date. NOT the series maximum."
+    )
 
 class _IndicatorPoint(BaseModel):
     """Internal: SDK indicator record with dates flattened to strings, so the
@@ -98,3 +107,34 @@ class IndicatorHistoryResponse(BaseModel):
     location_name: str | None = None
     total_points: int
     indicators: list[IndicatorSeries] = Field(default_factory=list)
+
+
+# ── CATALOGUE MODELS ──────────────────────────────────────────────────────────
+
+class CountryStations(BaseModel):
+    """One country as actually served: catalogue entry plus station count.
+
+    Derived from the station list, merged with the /countries catalogue. The
+    two disagree upstream (bug S3: the catalogue omits countries that have
+    stations and lists countries that have none), so the station count is the
+    ground truth for what can be queried."""
+
+    id: int
+    name: str | None = None
+    iso2: str | None = None
+    stations: int = Field(description="Number of stations served for this country; 0 means no location tool will return data for it")
+
+
+class RasterLayer(BaseModel):
+    """One GeoServer raster layer available for spatial queries.
+
+    workspace and store are exactly the values that
+    get_point_data_from_coordinates requires."""
+
+    measure_id: int | None = None
+    measure: str | None = None  # short name, e.g. "prec"
+    name: str | None = None
+    unit: str | None = None
+    workspace: str
+    store: str
+    temporality: str | None = None  # "daily" | "monthly" | "annual"

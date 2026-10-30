@@ -47,6 +47,19 @@ class FakeClient:
     def __init__(self):
         self.calls = []
         self.daily_response = make_daily_records(10)
+        self.indicator_response = None
+        self.locations_response = []
+        self.raw_get_response = [
+            {
+                "id": 11, "country_id": 6, "measure_id": 1,
+                "spatial_forecast": False, "spatial_climate": True,
+                "location_forecast": False, "location_climate": True,
+                "spatial_climate_conf": [
+                    {"temporality": "daily", "workspace": "climate", "store": "chirps_daily"},
+                    {"temporality": "monthly", "workspace": "climate", "store": "chirps_monthly"},
+                ],
+            }
+        ]
         self.raise_on_call = None
 
     def _record(self, entry):
@@ -56,7 +69,7 @@ class FakeClient:
 
     async def get_locations_by_search(self, q):
         self._record(("search", q))
-        return []
+        return self.locations_response
 
     async def get_historical_daily_by_date_range_all_measures(self, location_ids, start_date, end_date):
         self._record(("daily", location_ids, start_date, end_date))
@@ -78,18 +91,61 @@ class FakeClient:
             )
         ]
 
-    async def get_indicator_by_location_id(self, location_id):
-        self._record(("indicator_history", location_id))
+    @staticmethod
+    def make_indicator_records(location_id, spec):
+        """spec: list of (indicator_id, name, unit, [(start, end, value), ...])"""
         from aclimatesdkpy.aclimate_models import ClimateHistoricalIndicatorRecord
 
+        records, next_id = [], 1
+        for indicator_id, name, unit, points in spec:
+            for start, end, value in points:
+                records.append(
+                    ClimateHistoricalIndicatorRecord(
+                        id=next_id, indicator_id=indicator_id, indicator_name=name,
+                        indicator_unit=unit, location_id=location_id,
+                        location_name="Palmira", value=value, period="monthly",
+                        start_date=start, end_date=end,
+                    )
+                )
+                next_id += 1
+        return records
+
+    async def get_indicator_by_location_id(self, location_id):
+        self._record(("indicator_history", location_id))
+        if self.indicator_response is not None:
+            return self.indicator_response
+        return self.make_indicator_records(location_id, [
+            (9, "NDD", "days", [
+                (datetime.datetime(2024, 1, 1), datetime.datetime(2024, 1, 31), 3.5),
+                (datetime.datetime(2024, 2, 1), datetime.datetime(2024, 2, 28), 5.0),
+            ]),
+            (24, "Inicio de la canicula", "julian day", [
+                (datetime.datetime(2024, 1, 1), datetime.datetime(2024, 12, 31), 190.0),
+            ]),
+        ])
+
+    async def get_countries(self):
+        self._record(("countries",))
+        from aclimatesdkpy.aclimate_models import Country
+
         return [
-            ClimateHistoricalIndicatorRecord(
-                id=1, indicator_id=9, indicator_name="NDD", indicator_unit="days",
-                location_id=location_id, location_name="Palmira", value=3.5,
-                period="monthly", start_date=datetime.datetime(2024, 1, 1),
-                end_date=datetime.datetime(2024, 1, 31),
-            )
+            Country(id=2, name="HONDURAS", iso2="HN"),
+            Country(id=6, name="GUATEMALA", iso2="GT"),
         ]
+
+    async def get_climate_measures_by_country(self, country_id):
+        self._record(("climate_measures", country_id))
+        from aclimatesdkpy.aclimate_models import ClimateMeasure
+
+        return [ClimateMeasure(id=1, name="Precipitation", short_name="prec", unit="mm", enable=True)]
+
+    async def get(self, path, **params):
+        self._record(("raw_get", path, params))
+        return self.raw_get_response
+
+    async def get_indicator_features_by_indicator_and_country(self, indicator_id, country_id, type):
+        self._record(("features", indicator_id, country_id, type))
+        return []
 
     async def post_geoserver_point_data(self, request):
         self._record(("point_data", request.model_dump(mode="json")))
@@ -348,6 +404,11 @@ def test_date_range_tools_return_plain_iso_dates(harness):
     row = structured_of(result)[0]
     assert row["min_date"] == "2010-01-01"
     assert row["max_date"] == "2024-12-31"
+    # Bug S4: the API's min/max values are not series extremes; the renamed
+    # fields must carry no such claim.
+    assert "min_value" not in row and "max_value" not in row
+    assert row["value_at_min_date"] == 0.0
+    assert row["value_at_max_date"] == 40.0
 
 
 def test_indicator_raw_is_grouped_with_plain_iso_dates(harness):
@@ -355,12 +416,12 @@ def test_indicator_raw_is_grouped_with_plain_iso_dates(harness):
     result = call(mcp, "get_indicator_history", {"location_id": 4, "detail": "raw"})
     payload = structured_of(result)
     assert payload["location_id"] == 4
-    assert payload["total_points"] == 1
-    indicator = payload["indicators"][0]
-    assert indicator["indicator_id"] == 9
-    assert indicator["name"] == "NDD"
-    assert indicator["unit"] == "days"
-    assert indicator["series"][0] == ["2024-01-01", "2024-01-31", 3.5]
+    assert payload["total_points"] == 3
+    by_id = {i["indicator_id"]: i for i in payload["indicators"]}
+    assert set(by_id) == {9, 24}
+    assert by_id[9]["name"] == "NDD"
+    assert by_id[9]["unit"] == "days"
+    assert by_id[9]["series"][0] == ["2024-01-01", "2024-01-31", 3.5]
 
 
 def test_indicator_summary_survives_datetime_records(harness):
@@ -370,3 +431,127 @@ def test_indicator_summary_survives_datetime_records(harness):
     mcp, _ = harness
     result = call(mcp, "get_indicator_history", {"location_id": 4})
     assert "NDD" in text_of(result)
+
+
+# ── bug-report fixes (S1, S2, S3, S5, S10) ────────────────────────────────────
+
+def test_indicator_summary_is_per_indicator_not_pooled(harness):
+    """Bug S1: one narrative per indicator, each with its own name, unit and
+    record count, instead of pooling every indicator into one statistic."""
+    mcp, _ = harness
+    text = text_of(call(mcp, "get_indicator_history", {"location_id": 4}))
+    assert "NDD" in text and "Inicio de la canicula" in text
+    # two narratives, each counting only its own records
+    assert text.count("Registros: ") == 2
+    assert "Registros: 2 (monthly)" in text
+    assert "Registros: 1 (monthly)" in text
+    assert "Registros: 3" not in text, "records must not be pooled across indicators"
+
+
+def test_indicator_filters_by_indicator_id(harness):
+    mcp, _ = harness
+    result = call(mcp, "get_indicator_history", {"location_id": 4, "indicator_id": 24, "detail": "raw"})
+    payload = structured_of(result)
+    assert payload["total_points"] == 1
+    assert [i["indicator_id"] for i in payload["indicators"]] == [24]
+    text = text_of(call(mcp, "get_indicator_history", {"location_id": 4, "indicator_id": 24}))
+    assert "Inicio de la canicula" in text and "NDD" not in text
+
+
+def test_indicator_filters_by_dates(harness):
+    mcp, _ = harness
+    result = call(
+        mcp, "get_indicator_history",
+        {"location_id": 4, "start_date": "2024-02-01", "end_date": "2024-02-28", "detail": "raw"},
+    )
+    payload = structured_of(result)
+    assert payload["total_points"] == 1
+    assert payload["indicators"][0]["series"] == [["2024-02-01", "2024-02-28", 5.0]]
+
+
+def test_indicator_invalid_filter_date_is_rejected(harness):
+    mcp, client = harness
+    with pytest.raises(ToolError, match="YYYY-MM-DD"):
+        asyncio.run(mcp.call_tool("get_indicator_history", {"location_id": 4, "start_date": "febrero"}))
+    assert client.calls == []
+
+
+def test_indicator_raw_cap_applies_after_filtering(harness):
+    """Bug S2: a station with more records than the raw limit must still be
+    readable through the filters."""
+    import datetime as dt
+
+    mcp, client = harness
+    big = [(dt.datetime(2000, 1, 1) + dt.timedelta(days=i), dt.datetime(2000, 1, 2) + dt.timedelta(days=i), float(i)) for i in range(RAW_RECORD_LIMIT + 1)]
+    client.indicator_response = client.make_indicator_records(172, [
+        (19, "Epoca lluviosa", "julian day", big),
+        (24, "Inicio de la canicula", "julian day", [(dt.datetime(2024, 1, 1), dt.datetime(2024, 12, 31), 190.0)]),
+    ])
+    with pytest.raises(ToolError, match="indicator_id"):
+        asyncio.run(mcp.call_tool("get_indicator_history", {"location_id": 172, "detail": "raw"}))
+    result = call(mcp, "get_indicator_history", {"location_id": 172, "indicator_id": 24, "detail": "raw"})
+    assert structured_of(result)["total_points"] == 1
+
+
+def test_indicator_empty_after_filters_returns_guidance(harness):
+    mcp, _ = harness
+    text = text_of(call(mcp, "get_indicator_history", {"location_id": 4, "indicator_id": 999}))
+    assert "No indicator data" in text and "filters" in text
+
+
+def test_features_empty_result_is_explicit(harness):
+    """Bug S10: an empty catalogue must say so instead of returning an empty body."""
+    mcp, _ = harness
+    text = text_of(call(mcp, "get_features_indicator", {"indicator_id": 7, "country_id": 5}))
+    assert "No" in text and "not an error" in text
+
+
+def test_list_raster_layers_exposes_workspace_and_store(harness):
+    """Bug S5: get_point_data_from_coordinates was unusable because nothing
+    listed valid workspace/store values."""
+    mcp, client = harness
+    result = call(mcp, "list_raster_layers", {"country_id": 6})
+    layers = structured_of(result)
+    assert {(l["workspace"], l["store"], l["temporality"]) for l in layers} == {
+        ("climate", "chirps_daily", "daily"),
+        ("climate", "chirps_monthly", "monthly"),
+    }
+    assert layers[0]["measure"] == "prec"
+    assert ("raw_get", "/countries/6/climate-measures/configuration", {}) in client.calls
+
+
+def test_list_raster_layers_empty_is_explicit(harness):
+    mcp, client = harness
+    client.raw_get_response = []
+    text = text_of(call(mcp, "list_raster_layers", {"country_id": 3}))
+    assert "No raster layers" in text
+
+
+def test_countries_resource_is_derived_from_stations(harness):
+    """Bug S3: the countries resource must include every country that has
+    stations (El Salvador was missing) and expose station counts so countries
+    without stations are recognisable."""
+    import json
+
+    from aclimatesdkpy.aclimate_models import Location
+
+    mcp, client = harness
+    from aclimate_mcp.resources import register_resources
+
+    async def get_client():
+        return client
+
+    register_resources(mcp=mcp, get_client=get_client)
+    client.locations_response = [
+        Location(id=100 + i, name=f"S{i}", country_id=5, country_name="EL SALVADOR", country_iso2="SV")
+        for i in range(3)
+    ] + [
+        Location(id=200, name="G1", country_id=6, country_name="GUATEMALA", country_iso2="GT")
+    ]
+    contents = asyncio.run(mcp.read_resource("aclimate://countries"))
+    payload = json.loads(list(contents)[0].content)
+    by_id = {c["id"]: c for c in payload}
+    assert by_id[5]["stations"] == 3 and by_id[5]["name"] == "EL SALVADOR"
+    assert by_id[6]["stations"] == 1
+    assert by_id[2]["stations"] == 0, "catalogue-only countries must show 0 stations"
+    assert payload[0]["id"] == 5, "countries with stations come first"
