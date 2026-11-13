@@ -461,7 +461,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
     @_tool_errors
     async def list_raster_layers(country_id: int) -> str | list[RasterLayer]:
         client = await get_client()
-        config = await client.get(f"/countries/{country_id}/climate-measures/configuration")
+        config = await client.get_climate_measures_configuration_by_country(country_id)
         # Measure names enrich the layers; degrade gracefully if unavailable.
         measures = {}
         try:
@@ -470,18 +470,18 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
             pass
         layers: list[RasterLayer] = []
         for entry in config or []:
-            measure = measures.get(entry.get("measure_id"))
-            for conf in entry.get("spatial_climate_conf") or []:
-                if conf.get("workspace") and conf.get("store"):
+            measure = measures.get(entry.measure_id)
+            for conf in entry.spatial_climate_conf or []:
+                if conf.workspace and conf.store:
                     layers.append(
                         RasterLayer(
-                            measure_id=entry.get("measure_id"),
+                            measure_id=entry.measure_id,
                             measure=measure.short_name if measure else None,
                             name=measure.name if measure else None,
                             unit=measure.unit if measure else None,
-                            workspace=conf["workspace"],
-                            store=conf["store"],
-                            temporality=conf.get("temporality"),
+                            workspace=conf.workspace,
+                            store=conf.store,
+                            temporality=conf.temporality,
                         )
                     )
         if not layers:
