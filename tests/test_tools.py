@@ -126,11 +126,33 @@ class FakeClient:
 
     async def get_countries(self):
         self._record(("countries",))
-        from aclimatesdkpy.aclimate_models import Country
+        from aclimatesdkpy.aclimate_models import (
+            Country,
+            CountryClimateConf,
+            CountryIndicatorConf,
+        )
+
+        def conf(short, name, unit):
+            return CountryClimateConf(
+                name=name, short_name=short, unit=unit,
+                spatial_forecast=False, spatial_climate=True,
+                location_forecast=False, location_climate=True,
+            )
 
         return [
             Country(id=2, name="HONDURAS", iso2="HN"),
-            Country(id=6, name="GUATEMALA", iso2="GT"),
+            Country(
+                id=6, name="GUATEMALA", iso2="GT",
+                conf_climate=[conf("prec", "Precipitation", "mm"), conf("tmax", "Max temperature", "C")],
+                conf_indicator=[
+                    CountryIndicatorConf(
+                        type="climate", name="Dias frios", short_name="TX10p",
+                        unit="% dias/anio", temporality="annual",
+                        spatial_forecast=False, spatial_climate=False,
+                        location_forecast=False, location_climate=True,
+                    )
+                ],
+            ),
         ]
 
     async def get_climate_measures_by_country(self, country_id):
@@ -139,9 +161,11 @@ class FakeClient:
 
         return [ClimateMeasure(id=1, name="Precipitation", short_name="prec", unit="mm", enable=True)]
 
-    async def get(self, path, **params):
-        self._record(("raw_get", path, params))
-        return self.raw_get_response
+    async def get_climate_measures_configuration_by_country(self, country_id):
+        self._record(("measures_configuration", country_id))
+        from aclimatesdkpy.aclimate_models import CountryClimateMeasure
+
+        return [CountryClimateMeasure.model_validate(e) for e in self.raw_get_response]
 
     async def get_indicator_features_by_indicator_and_country(self, indicator_id, country_id, type):
         self._record(("features", indicator_id, country_id, type))
@@ -517,7 +541,7 @@ def test_list_raster_layers_exposes_workspace_and_store(harness):
         ("climate", "chirps_monthly", "monthly"),
     }
     assert layers[0]["measure"] == "prec"
-    assert ("raw_get", "/countries/6/climate-measures/configuration", {}) in client.calls
+    assert ("measures_configuration", 6) in client.calls
 
 
 def test_list_raster_layers_empty_is_explicit(harness):
@@ -555,3 +579,18 @@ def test_countries_resource_is_derived_from_stations(harness):
     assert by_id[6]["stations"] == 1
     assert by_id[2]["stations"] == 0, "catalogue-only countries must show 0 stations"
     assert payload[0]["id"] == 5, "countries with stations come first"
+    # Since the 2026-11 API update, /countries embeds the configured measures
+    # and indicators; the resource surfaces the COMPLETE objects, not just
+    # their names.
+    measures = by_id[6]["climate_measures"]
+    assert [m["short_name"] for m in measures] == ["prec", "tmax"]
+    assert measures[0]["name"] == "Precipitation"
+    assert measures[0]["unit"] == "mm"
+    assert measures[0]["spatial_climate"] is True
+    indicator = by_id[6]["indicators"][0]
+    assert indicator["short_name"] == "TX10p"
+    assert indicator["unit"] == "% dias/anio"
+    assert indicator["temporality"] == "annual"
+    assert indicator["type"] == "climate"
+    assert by_id[5]["climate_measures"] == [], "a country the catalogue omits has no conf to surface"
+    assert by_id[2]["climate_measures"] == []

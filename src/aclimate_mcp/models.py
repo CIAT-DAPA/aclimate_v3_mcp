@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
 from datetime import date, datetime
 
+from aclimatesdkpy.aclimate_models import CountryClimateConf, CountryIndicatorConf
+
 # ── OUTPUT MODELS ─────────────────────────────────────────────────────────────
 
 class AvailableDateRange(BaseModel):
@@ -114,15 +116,27 @@ class IndicatorHistoryResponse(BaseModel):
 class CountryStations(BaseModel):
     """One country as actually served: catalogue entry plus station count.
 
-    Derived from the station list, merged with the /countries catalogue. The
-    two disagree upstream (bug S3: the catalogue omits countries that have
-    stations and lists countries that have none), so the station count is the
-    ground truth for what can be queried."""
+    Station counts are derived from the station list and remain the ground
+    truth for what can be queried (bug S3: the old catalogue disagreed with
+    the stations). Since the 2026-11 API update, /countries also embeds the
+    climate measures and indicators configured per country; their short
+    measures and indicators are surfaced here COMPLETE (full objects, not
+    just names) so an agent can see what each country serves - units,
+    temporalities, categories and spatial layers included - without extra
+    calls."""
 
     id: int
     name: str | None = None
     iso2: str | None = None
     stations: int = Field(description="Number of stations served for this country; 0 means no location tool will return data for it")
+    climate_measures: list[CountryClimateConf] = Field(
+        default_factory=list,
+        description="Climate measures configured for this country, complete: name, short_name, unit, descriptions, the spatial/location flags, and spatial_climate_conf with the GeoServer workspace/store/temporality per layer",
+    )
+    indicators: list[CountryIndicatorConf] = Field(
+        default_factory=list,
+        description="Agroclimatic indicators configured for this country, complete: type, name, short_name, unit, temporality, category, descriptions, flags, criteria and spatial workspace/store",
+    )
 
 
 class RasterLayer(BaseModel):
