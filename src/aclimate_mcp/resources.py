@@ -28,14 +28,17 @@ def register_resources(mcp, get_client: GetClient) -> None:
 
     @mcp.resource("aclimate://countries", mime_type="application/json")
     async def list_countries() -> list[CountryStations]:
-        """Countries as actually served, with station counts.
+        """Countries as actually served, with station counts and configuration.
 
-        The upstream /countries catalogue disagrees with the station list
-        (bug S3: it omits countries that have stations - e.g. El Salvador,
-        the only one with indicator data - and lists countries that have
-        none). The station list is therefore the primary source here; the
-        catalogue only contributes entries so nothing upstream is hidden.
+        Station counts come from the station list, which remains the ground
+        truth for what can be queried (bug S3: the old catalogue omitted
+        El Salvador and listed countries with no stations). Since the
+        2026-11 API update, /countries embeds each country's configured
+        climate measures and indicators (conf_climate / conf_indicator);
+        they are merged in here complete, as the API serves them. A country missing from either
+        source is still listed, so nothing upstream is hidden.
         """
+
         client = await get_client()
         locations = await client.get_locations_by_search(q="")
         by_id: dict[int, CountryStations] = {}
@@ -52,13 +55,16 @@ def register_resources(mcp, get_client: GetClient) -> None:
             entry.stations += 1
         try:
             for country in await client.get_countries():
-                if country.id not in by_id:
-                    by_id[country.id] = CountryStations(
+                entry = by_id.get(country.id)
+                if entry is None:
+                    entry = CountryStations(
                         id=country.id, name=country.name, iso2=country.iso2, stations=0
                     )
-                else:
-                    by_id[country.id].name = by_id[country.id].name or country.name
-                    by_id[country.id].iso2 = by_id[country.id].iso2 or country.iso2
+                    by_id[country.id] = entry
+                entry.name = entry.name or country.name
+                entry.iso2 = entry.iso2 or country.iso2
+                entry.climate_measures = list(country.conf_climate)
+                entry.indicators = list(country.conf_indicator)
         except Exception:  # noqa: BLE001 - the catalogue is optional enrichment
             pass
         return sorted(by_id.values(), key=lambda c: (-c.stations, c.id))
@@ -72,12 +78,12 @@ def register_resources(mcp, get_client: GetClient) -> None:
         #return [IndicatorCategory(**c) for c in data]
         return data
 
-    @mcp.resource("aclimate://indicators/{country_id}", mime_type="application/json")
-    async def list_indicators(country_id: int) -> list[IndicatorWithFeatures]:
-        """List of all agroclimatic indicators by country."""
-        #cache_key = f"indicators:country:{country_id}"
-        #data = await cached_get(cache_key,"/indicator-mng/by-country",country_id=country_id,)
-        client = await get_client()
-        data = await client.get_indicators_by_country(country_id=country_id)
-        #return [Indicator(**i) for i in data]
-        return data
+    #@mcp.resource("aclimate://indicators/{country_id}", mime_type="application/json")
+    #async def list_indicators(country_id: int) -> list[IndicatorWithFeatures]:
+    #    """List of all agroclimatic indicators by country."""
+    #    #cache_key = f"indicators:country:{country_id}"
+    #    #data = await cached_get(cache_key,"/indicator-mng/by-country",country_id=country_id,)
+    #    client = await get_client()
+    #    data = await client.get_indicators_by_country(country_id=country_id)
+    #    #return [Indicator(**i) for i in data]
+    #    return data
