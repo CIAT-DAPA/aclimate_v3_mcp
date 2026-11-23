@@ -152,3 +152,29 @@ class RasterLayer(BaseModel):
     workspace: str
     store: str
     temporality: str | None = None  # "daily" | "monthly" | "annual"
+
+
+# ── ADMINISTRATIVE AREAS ──────────────────────────────────────────────────────
+
+class AdminAreaMatch(BaseModel):
+    """One administrative area matched in a GeoServer layer, without geometry.
+
+    The coordinates are deliberately left out: a department at full resolution
+    is megabytes of vertices an agent cannot interpret. The properties carry
+    the official names/codes needed to disambiguate matches, and the bbox is
+    enough for spatial reasoning (which stations fall inside, a centre point
+    for raster queries). detail='raw' on the tool returns the full GeoJSON."""
+
+    properties: dict = Field(default_factory=dict, description="All attributes the layer stores for this area (official names, codes)")
+    geometry_type: str | None = Field(None, description="Polygon, MultiPolygon, ...")
+    vertices: int = Field(0, description="Number of coordinate points in the geometry")
+    bbox: list[float] | None = Field(None, description="[west, south, east, north] in EPSG:4326")
+
+
+class AdminAreaSearchResult(BaseModel):
+    """Administrative areas matching a text search in one GeoServer layer."""
+
+    layer: str
+    description: str = Field(description="The search text, matched partially and case-insensitively against every text attribute of the layer")
+    total_matches: int
+    matches: list[AdminAreaMatch] = Field(default_factory=list)
