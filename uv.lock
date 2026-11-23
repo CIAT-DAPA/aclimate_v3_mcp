@@ -35,8 +35,8 @@ dev = [
 
 [[package]]
 name = "aclimatesdkpy"
-version = "0.1.0"
-source = { git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git#5bb543990de8d246d28210400d5603423317e8fa" }
+version = "0.2.0"
+source = { git = "https://github.com/CIAT-DAPA/aclimatesdkpy.git#c0d7ff38a17f1b13d8d7a600dd2596c1efc31a5f" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },

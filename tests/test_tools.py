@@ -60,6 +60,7 @@ class FakeClient:
                 ],
             }
         ]
+        self.polygon_response = None
         self.raise_on_call = None
 
     def _record(self, entry):
@@ -170,6 +171,24 @@ class FakeClient:
     async def get_indicator_features_by_indicator_and_country(self, indicator_id, country_id, type):
         self._record(("features", indicator_id, country_id, type))
         return []
+
+    async def get_geoserver_admin_layers(self):
+        self._record(("admin_layers",))
+        from aclimatesdkpy.aclimate_models import AdminAreaLayer
+
+        return [
+            AdminAreaLayer(layer="colombia_adm1", prefix="colombia", level=1),
+            AdminAreaLayer(layer="el_salvador_adm2", prefix="el_salvador", level=2),
+            AdminAreaLayer(layer="custom_boundaries", prefix=None, level=None),
+        ]
+
+    async def get_geoserver_admin_area_polygon(self, layer, description):
+        self._record(("admin_polygon", layer, description))
+        if self.polygon_response is not None:
+            return self.polygon_response
+        from aclimatesdkpy.aclimate_api_error import AClimateAPIError
+
+        raise AClimateAPIError(404, "no polygon matches")
 
     async def post_geoserver_point_data(self, request):
         self._record(("point_data", request.model_dump(mode="json")))
@@ -594,3 +613,88 @@ def test_countries_resource_is_derived_from_stations(harness):
     assert indicator["type"] == "climate"
     assert by_id[5]["climate_measures"] == [], "a country the catalogue omits has no conf to surface"
     assert by_id[2]["climate_measures"] == []
+
+
+# ── administrative areas (SDK v0.2.0) ─────────────────────────────────────────
+
+GEOJSON_VALLE = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {"NAME_1": "Valle del Cauca", "GID_1": "COL.29_1"},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[-77.0, 3.0], [-76.0, 3.0], [-76.0, 4.5], [-77.0, 4.5], [-77.0, 3.0]]],
+            },
+        },
+        {
+            "type": "Feature",
+            "properties": {"NAME_1": "Valle de Aburra", "GID_1": "COL.02_9"},
+            "geometry": {
+                "type": "MultiPolygon",
+                "coordinates": [
+                    [[[-75.6, 6.1], [-75.5, 6.1], [-75.5, 6.4], [-75.6, 6.1]]],
+                    [[[-75.7, 6.0], [-75.65, 6.0], [-75.65, 6.05], [-75.7, 6.0]]],
+                ],
+            },
+        },
+    ],
+}
+
+
+def test_list_admin_area_layers(harness):
+    mcp, client = harness
+    result = call(mcp, "list_admin_area_layers", {})
+    layers = structured_of(result)
+    assert [l["layer"] for l in layers] == ["colombia_adm1", "el_salvador_adm2", "custom_boundaries"]
+    assert layers[0]["prefix"] == "colombia" and layers[0]["level"] == 1
+    assert layers[2]["prefix"] is None, "layers outside the naming convention still appear"
+    assert ("admin_layers",) in client.calls
+
+
+def test_find_admin_area_summary_has_no_coordinates(harness):
+    mcp, client = harness
+    client.polygon_response = GEOJSON_VALLE
+    result = call(mcp, "find_admin_area", {"layer": "colombia_adm1", "description": "valle"})
+    payload = structured_of(result)
+    assert payload["total_matches"] == 2
+    first = payload["matches"][0]
+    assert first["properties"]["NAME_1"] == "Valle del Cauca"
+    assert first["geometry_type"] == "Polygon"
+    assert first["vertices"] == 5
+    assert first["bbox"] == [-77.0, 3.0, -76.0, 4.5]
+    assert "coordinates" not in str(payload), "summary must not carry geometry"
+    # multipolygon: bbox covers both parts
+    second = payload["matches"][1]
+    assert second["geometry_type"] == "MultiPolygon"
+    assert second["vertices"] == 8
+    assert second["bbox"] == [-75.7, 6.0, -75.5, 6.4]
+    assert ("admin_polygon", "colombia_adm1", "valle") in client.calls
+
+
+def test_find_admin_area_raw_returns_full_geojson(harness):
+    mcp, client = harness
+    client.polygon_response = GEOJSON_VALLE
+    result = call(mcp, "find_admin_area", {"layer": "colombia_adm1", "description": "valle", "detail": "raw"})
+    payload = structured_of(result)
+    assert payload["type"] == "FeatureCollection"
+    assert payload["features"][0]["geometry"]["coordinates"], "raw keeps every vertex"
+
+
+def test_find_admin_area_no_match_is_explicit(harness):
+    """The API answers 404 for no-match; the agent must get guidance, not the
+    generic 404 message that talks about location_id."""
+    mcp, client = harness
+    client.polygon_response = None  # FakeClient raises AClimateAPIError(404)
+    text = text_of(call(mcp, "find_admin_area", {"layer": "colombia_adm1", "description": "xyz"}))
+    assert "No administrative area" in text
+    assert "list_admin_area_layers" in text
+    assert "location_id" not in text
+
+
+def test_find_admin_area_empty_collection_is_explicit(harness):
+    mcp, client = harness
+    client.polygon_response = {"type": "FeatureCollection", "features": []}
+    text = text_of(call(mcp, "find_admin_area", {"layer": "colombia_adm1", "description": "xyz"}))
+    assert "No administrative area" in text

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from datetime import date, datetime
-from typing import Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 
 import httpx
 from mcp.server.fastmcp.exceptions import ToolError
@@ -14,6 +14,7 @@ from aclimatesdkpy.aclimate_auth_error import AClimateAuthError
 from aclimatesdkpy.aclimate_models import (
     Admin1,
     Admin2,
+    AdminAreaLayer,
     IndicatorFeature,
     Location,
     MinMaxDateRecord,
@@ -24,6 +25,8 @@ from aclimatesdkpy.aclimate_models import (
 from aclimatesdkpy.context_builder import ContextBuilder
 from aclimate_mcp.models import (
     _IndicatorPoint,
+    AdminAreaMatch,
+    AdminAreaSearchResult,
     AvailableDateRange,
     ClimateMeasureSeries,
     ClimatologyResponse,
@@ -165,6 +168,39 @@ def _group_indicator_points(location_id: int, points: list[_IndicatorPoint]) -> 
         total_points=len(points),
         indicators=list(indicators.values()),
     )
+
+# ── GEOMETRY SUMMARY ──────────────────────────────────────────────────────────
+def _walk_positions(coordinates):
+    """Yield every [lon, lat] position in a GeoJSON coordinates array."""
+    if not isinstance(coordinates, (list, tuple)):
+        return
+    if coordinates and isinstance(coordinates[0], (int, float)):
+        yield coordinates
+        return
+    for part in coordinates:
+        yield from _walk_positions(part)
+
+
+def _summarize_feature(feature: dict) -> AdminAreaMatch:
+    geometry = feature.get("geometry") or {}
+    west = south = east = north = None
+    vertices = 0
+    for position in _walk_positions(geometry.get("coordinates")):
+        if len(position) < 2:
+            continue
+        lon, lat = position[0], position[1]
+        vertices += 1
+        west = lon if west is None else min(west, lon)
+        east = lon if east is None else max(east, lon)
+        south = lat if south is None else min(south, lat)
+        north = lat if north is None else max(north, lat)
+    return AdminAreaMatch(
+        properties=feature.get("properties") or {},
+        geometry_type=geometry.get("type"),
+        vertices=vertices,
+        bbox=None if west is None else [west, south, east, north],
+    )
+
 
 # ── ERROR TRANSLATION ─────────────────────────────────────────────────────────
 # The SDK raises transport/auth/API errors that mean nothing to the calling
@@ -491,6 +527,54 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
                 "station tools instead."
             )
         return layers
+
+    @mcp.tool(name="list_admin_area_layers",
+            description="List the GeoServer layers of administrative areas (countries and their subdivisions). Each entry has the layer name to pass to find_admin_area, plus prefix (country) and level (0=country, 1=department/state, 2=municipality) when the layer follows the {prefix}_adm{level} naming convention.")
+    @_tool_errors
+    async def list_admin_area_layers() -> list[AdminAreaLayer]:
+        client = await get_client()
+        return await client.get_geoserver_admin_layers()
+
+    @mcp.tool(name="find_admin_area",
+            description="Search administrative areas (departments, municipalities...) by name in one GeoServer layer. The search is partial and case-insensitive over every text attribute of the layer. Get the layer name from list_admin_area_layers. detail='summary' (default) returns each match's attributes, bounding box and vertex count without coordinates; detail='raw' returns the full GeoJSON FeatureCollection (EPSG:4326), which can be very large.")
+    @_tool_errors
+    async def find_admin_area(
+        layer: str,
+        description: str,
+        detail: Detail = "summary",
+    ) -> str | AdminAreaSearchResult | dict[str, Any]:
+        client = await get_client()
+        try:
+            geojson = await client.get_geoserver_admin_area_polygon(
+                layer=layer, description=description
+            )
+        except AClimateAPIError as exc:
+            if exc.status_code == 404:
+                # The API answers 404 both for an unknown layer and for a
+                # search with no matches; the generic 404 message talks about
+                # location_id and would mislead here.
+                return (
+                    f"No administrative area in layer {layer!r} matches "
+                    f"{description!r}. Check the layer name with "
+                    "list_admin_area_layers, or try a shorter search text "
+                    "(the match is partial and case-insensitive)."
+                )
+            raise
+        features = (geojson or {}).get("features") or []
+        if not features:
+            return (
+                f"No administrative area in layer {layer!r} matches "
+                f"{description!r}. Try a shorter search text (the match is "
+                "partial and case-insensitive)."
+            )
+        if detail == "raw":
+            return geojson
+        return AdminAreaSearchResult(
+            layer=layer,
+            description=description,
+            total_matches=len(features),
+            matches=[_summarize_feature(f) for f in features],
+        )
 
     @mcp.tool(name="get_point_data_from_coordinates",
             description="Raster time series for a geographic point (latitude/longitude). Call list_raster_layers first to obtain valid workspace and store values. Dates are ISO YYYY-MM-DD.")
