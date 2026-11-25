@@ -151,7 +151,7 @@ class RasterLayer(BaseModel):
     unit: str | None = None
     workspace: str
     store: str
-    temporality: str | None = None  # "daily" | "monthly" | "annual"
+    temporality: str | None = None  # "daily" | "monthly" | "annual" | "climatology"
 
 
 # ── ADMINISTRATIVE AREAS ──────────────────────────────────────────────────────
