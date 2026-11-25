@@ -586,7 +586,7 @@ def register_tools(mcp, get_client: GetClient, ctx: ContextBuilder) -> None:
         store: str,
         start_date: str,
         end_date: str,
-        temporality: Literal["daily", "monthly", "annual"] = "monthly",
+        temporality: Literal["daily", "monthly", "annual", "climatology"] = "daily",
     ) -> PointDataResponse:
         _validate_date_range(start_date, end_date)
         client = await get_client()
